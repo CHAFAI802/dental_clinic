@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}Équipe - Cabinet Dentaire{% endblock %}
+
+{% block content %}
+  <section class="hero">
+    <div class="hero-copy">
+      <p>Notre équipe</p>
+      <h1>Des experts dentaires à votre service</h1>
+      <p>Une équipe de praticiens et d’assistants formés pour garantir des soins professionnels, empathiques et personnalisés.</p>
+      <div class="buttons">
+        <a class="btn btn-primary" href="{% url 'contact' %}">Nous contacter</a>
+        <a class="btn btn-secondary" href="{% url 'home' %}">Retour à l'accueil</a>
+      </div>
+    </div>
+    <div class="hero-image">
+      <img src="https://images.unsplash.com/photo-1506784365847-bbad939e9335?auto=format&fit=crop&w=1000&q=80" alt="Équipe dentaire" />
+    </div>
+  </section>
+
+  <section class="features">
+    <article class="feature-card">
+      <h3>Docteur Alaa Eddine</h3>
+      <p>Spécialiste en chirurgie dentaire et implantologie, avec une approche douce et précise.</p>
+    </article>
+    <article class="feature-card">
+      <h3>Hygiéniste dentaire</h3>
+      <p>Prévention, détartrage et conseils personnalisés pour une hygiène bucco-dentaire optimale.</p>
+    </article>
+    <article class="feature-card">
+      <h3>Assistants expérimentés</h3>
+      <p>Accompagnement pendant chaque étape du soin, pour un confort maximal et une expérience sereine.</p>
+    </article>
+    <article class="feature-card">
+      <h3>Accueil patient</h3>
+      <p>Gestion de vos rendez-vous, prise en charge administrative et accompagnement dès votre arrivée.</p>
+    </article>
+  </section>
+{% endblock %}

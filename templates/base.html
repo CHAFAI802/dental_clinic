@@ -1,0 +1,38 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}Cabinet Dentaire{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'css/app.css' %}" />
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+  <main class="page">
+    <header class="topbar">
+      <a class="brand" href="{% url 'home' %}">
+        <span>🦷</span>
+        Cabinet Dentaire Elqods Dr CHAFAI alaa eddine
+      </a>
+      <div class="topbar-nav">
+        <a href="{% url 'services' %}">Services</a>
+        <a href="{% url 'team' %}">Équipe</a>
+        <a href="{% url 'contact' %}">Contact</a>
+        <div class="topbar-user" id="topbar-user">
+          <span id="topbar-user-name"></span>
+          <span class="user-badge" id="topbar-user-role"></span>
+        </div>
+      </div>
+    </header>
+
+    {% block content %}{% endblock %}
+
+    <footer>
+      <p>Cabinet Dentaire • 123 Rue du Sourire • Paris • contact@cabinetdentaire.fr</p>
+    </footer>
+  </main>
+  <script src="{% static 'js/app.js' %}"></script>
+  {% block extra_js %}{% endblock %}
+</body>
+</html>

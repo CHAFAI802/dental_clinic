@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}Contact - Cabinet Dentaire{% endblock %}
+
+{% block content %}
+  <section class="hero">
+    <div class="hero-copy">
+      <p>Contactez-nous</p>
+      <h1>Nous sommes prêts à vous accueillir</h1>
+      <p>Appelez-nous, écrivez-nous ou venez directement au cabinet pour prendre rendez-vous et poser vos questions.</p>
+      <div class="buttons">
+        <a class="btn btn-primary" href="mailto:contact@cabinetdentaire.fr">contact@cabinetdentaire.fr</a>
+        <a class="btn btn-secondary" href="{% url 'home' %}">Retour à l'accueil</a>
+      </div>
+    </div>
+    <div class="hero-image">
+      <img src="https://images.unsplash.com/photo-1526256262350-7da7584cf5eb?auto=format&fit=crop&w=1000&q=80" alt="Contact cabinet dentaire" />
+    </div>
+  </section>
+
+  <section class="features">
+    <article class="feature-card">
+      <h3>Adresse</h3>
+      <p>123 Rue du Sourire, 75000 Paris</p>
+    </article>
+    <article class="feature-card">
+      <h3>Téléphone</h3>
+      <p>+33 1 23 45 67 89</p>
+    </article>
+    <article class="feature-card">
+      <h3>Email</h3>
+      <p>contact@cabinetdentaire.fr</p>
+    </article>
+    <article class="feature-card">
+      <h3>Horaires</h3>
+      <p>Lundi - Vendredi : 8h30 - 18h30</p>
+    </article>
+  </section>
+{% endblock %}

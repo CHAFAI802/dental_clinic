@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}Services - Cabinet Dentaire{% endblock %}
+
+{% block content %}
+  <section class="hero">
+    <div class="hero-copy">
+      <p>Soins spécialisés</p>
+      <h1>Services dentaires complets pour votre sourire</h1>
+      <p>Découvrez notre gamme de soins : prévention, implants, esthétique et traitements restaurateurs pour toute la famille.</p>
+      <div class="buttons">
+        <a class="btn btn-primary" href="{% url 'contact' %}">Réserver un rendez-vous</a>
+        <a class="btn btn-secondary" href="{% url 'home' %}">Retour à l'accueil</a>
+      </div>
+    </div>
+    <div class="hero-image">
+      <img src="https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=1000&q=80" alt="Services dentaires" />
+    </div>
+  </section>
+
+  <section class="features">
+    <article class="feature-card">
+      <h3>Soins conservateurs</h3>
+      <p>Traitements de caries, obturations, détartrage et suivi préventif pour protéger votre santé buccale.</p>
+    </article>
+    <article class="feature-card">
+      <h3>Esthétique dentaire</h3>
+      <p>Blanchiment, facettes et restaurations esthétiques pour renforcer la confiance dans votre sourire.</p>
+    </article>
+    <article class="feature-card">
+      <h3>Implants et prothèses</h3>
+      <p>Solutions durables pour remplacer les dents manquantes avec confort et fonction optimale.</p>
+    </article>
+    <article class="feature-card">
+      <h3>Urgences dentaires</h3>
+      <p>Interventions rapides pour soulager la douleur et préserver vos dents lors d’urgences.</p>
+    </article>
+  </section>
+{% endblock %}

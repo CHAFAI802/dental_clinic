@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{% block title %}Cabinet Dentaire — Espace professionnel{% endblock %}
+
+{% block content %}
+  <section class="hero">
+    <div class="hero-copy">
+      <p>Soins dentaires haut de gamme pour toute la famille</p>
+      <h1>Votre sourire,cher monsieur notre priorité<br>dans un cabinet dentaire moderne.</h1>
+      <p>Connectez-vous pour accéder aux modules de gestion du cabinet selon votre rôle : patients, rendez-vous, facturation, imagerie et plus.</p>
+      <div class="buttons">
+        <a class="btn btn-primary" href="{% url 'contact' %}">Prendre rendez-vous</a>
+        <a class="btn btn-secondary" href="{% url 'services' %}">Voir nos services</a>
+      </div>
+    </div>
+
+    <aside class="auth-panel">
+      <div id="login-panel">
+        <h2>Connexion professionnelle</h2>
+        <p class="subtitle">Authentification par email et mot de passe (modèle User).</p>
+        <form id="login-form" class="auth-form" novalidate>
+          <div class="form-group">
+            <label for="login-email">Adresse email</label>
+            <input
+              id="login-email"
+              name="email"
+              type="email"
+              autocomplete="username"
+              placeholder="exemple@cabinetdentaire.fr"
+              required
+            />
+          </div>
+          <div class="form-group">
+            <label for="login-password">Mot de passe</label>
+            <input
+              id="login-password"
+              name="password"
+              type="password"
+              autocomplete="current-password"
+              placeholder="Votre mot de passe"
+              required
+            />
+          </div>
+          <div id="login-error" class="form-error hidden" role="alert"></div>
+          <button id="login-submit" type="submit" class="btn btn-primary">Se connecter</button>
+        </form>
+      </div>
+
+      <div id="user-panel" class="user-session hidden">
+        <h2>Session active</h2>
+        <p class="subtitle">Vous êtes connecté au système de gestion du cabinet.</p>
+        <p class="user-name" id="user-full-name"></p>
+        <p class="user-email" id="user-email"></p>
+        <div class="user-meta">
+          <span class="user-badge" id="user-role-badge"></span>
+        </div>
+        <button id="logout-btn" type="button" class="btn btn-danger btn-sm">Se déconnecter</button>
+      </div>
+    </aside>
+  </section>
+
+  <section class="hero-image">
+    <img
+  src="https://images.unsplash.com/photo-1598257006458-087169a1f08d?auto=format&fit=crop&w=1200&q=80"
+  alt="Sourire éclatant"
+    />
+  </section>
+
+  <section class="features">
+    <article class="feature-card">
+      <h3>Soins conservateurs</h3>
+      <p>Traitements indolores et sur mesure pour préserver votre sourire et assurer une excellente santé bucco-dentaire.</p>
+    </article>
+    <article class="feature-card">
+      <h3>Esthétique dentaire</h3>
+      <p>Blanchiment, facettes, couronnes et restauration esthétique pour un sourire éclatant.</p>
+    </article>
+    <article class="feature-card">
+      <h3>Implants & prothèses</h3>
+      <p>Solutions durables et confortables pour remplacer les dents perdues avec précision.</p>
+    </article>
+    <article class="feature-card">
+      <h3>Urgences rapides</h3>
+      <p>Interventions rapides et assistance professionnelle pour soulager les douleurs et restaurer la fonction.</p>
+    </article>
+  </section>
+
+  <section class="dashboard-section locked" id="dashboard-section">
+    <div class="section-header">
+      <div>
+        <h2>Applications du cabinet</h2>
+        <p>Modules Django REST Framework accessibles selon votre rôle et vos permissions.</p>
+      </div>
+      <div class="section-actions">
+        <a class="btn btn-secondary" href="{% url 'api-links' %}">Voir JSON des routes</a>
+      </div>
+    </div>
+
+    <p id="modules-locked-message" class="api-note">
+      Connectez-vous pour afficher les modules autorisés pour votre profil (Super Admin, Administrateur, Dentiste, Assistant, Réceptionniste, Comptable).
+    </p>
+
+    <div class="links-grid" id="modules-grid"></div>
+
+    <div class="module-viewer" id="module-viewer">
+      <div class="module-viewer-header">
+        <h3 id="module-viewer-title">Module</h3>
+        <button id="close-viewer-btn" type="button" class="btn btn-secondary btn-sm">Fermer</button>
+      </div>
+      <div id="module-viewer-body"></div>
+    </div>
+
+    <p class="api-note">
+      Les accès sont filtrés côté serveur selon les permissions définies dans chaque application
+      (<code>IsSuperAdmin</code>, <code>IsAdministrator</code>, <code>IsClinicalStaff</code>,
+      <code>IsStaffMember</code>, <code>IsAccountantOrAdmin</code>).
+    </p>
+  </section>
+{% endblock %}
