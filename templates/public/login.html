@@ -1,0 +1,230 @@
+{% extends "public/base_public.html" %}
+{% load static %}
+
+{% block title %}Connexion{% endblock %}
+
+{% block content %}
+
+<!-- ================= HERO ================= -->
+
+<section class="bg-light py-5 border-bottom">
+
+    <div class="container">
+
+        <div class="row justify-content-center text-center">
+
+            <div class="col-lg-8">
+
+                <span class="badge bg-primary mb-3">
+                    Cabinet Dentaire ELQODS
+                </span>
+
+                <h1 class="display-4 fw-bold mb-4">
+                    Connexion
+                </h1>
+
+                <p class="lead text-muted">
+                    Connectez-vous à votre espace professionnel afin d'accéder
+                    aux fonctionnalités correspondant à votre rôle.
+                </p>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</section>
+
+<!-- ================= LOGIN ================= -->
+
+<section class="py-5">
+
+    <div class="container">
+
+        <div class="row justify-content-center">
+
+            <div class="col-lg-5">
+
+                <div class="card shadow border-0">
+
+                    <div class="card-body p-5">
+
+                        <div class="text-center mb-4">
+
+                            <i class="bi bi-person-circle display-3 text-primary"></i>
+
+                            <h3 class="fw-bold mt-3">
+
+                                Accès sécurisé
+
+                            </h3>
+
+                            <p class="text-muted">
+
+                                Veuillez saisir vos identifiants.
+
+                            </p>
+
+                        </div>
+
+                        <form>
+
+                            <div class="mb-4">
+
+                                <label class="form-label">
+
+                                    Adresse e-mail
+
+                                </label>
+
+                                <div class="input-group">
+
+                                    <span class="input-group-text">
+
+                                        <i class="bi bi-envelope"></i>
+
+                                    </span>
+
+                                    <input
+                                        type="email"
+                                        class="form-control"
+                                        placeholder="nom@cabinet.dz">
+
+                                </div>
+
+                            </div>
+
+                            <div class="mb-3">
+
+                                <label class="form-label">
+
+                                    Mot de passe
+
+                                </label>
+
+                                <div class="input-group">
+
+                                    <span class="input-group-text">
+
+                                        <i class="bi bi-lock"></i>
+
+                                    </span>
+
+                                    <input
+                                        type="password"
+                                        class="form-control"
+                                        placeholder="********">
+
+                                    <button
+                                        class="btn btn-outline-secondary"
+                                        type="button">
+
+                                        <i class="bi bi-eye"></i>
+
+                                    </button>
+
+                                </div>
+
+                            </div>
+
+                            <div class="d-flex justify-content-between align-items-center mb-4">
+
+                                <div class="form-check">
+
+                                    <input
+                                        class="form-check-input"
+                                        type="checkbox"
+                                        id="remember">
+
+                                    <label
+                                        class="form-check-label"
+                                        for="remember">
+
+                                        Se souvenir de moi
+
+                                    </label>
+
+                                </div>
+
+                                <a
+                                    href="#"
+                                    class="text-decoration-none">
+
+                                    Mot de passe oublié ?
+
+                                </a>
+
+                            </div>
+
+                            <div class="d-grid">
+
+                                <button
+                                    type="submit"
+                                    class="btn btn-primary btn-lg">
+
+                                    <i class="bi bi-box-arrow-in-right me-2"></i>
+
+                                    Se connecter
+
+                                </button>
+
+                            </div>
+
+                        </form>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</section>
+
+<!-- ================= SECURITY ================= -->
+
+<section class="pb-5">
+
+    <div class="container">
+
+        <div class="row justify-content-center">
+
+            <div class="col-lg-8">
+
+                <div class="alert alert-light border shadow-sm">
+
+                    <h5 class="fw-bold">
+
+                        <i class="bi bi-shield-lock-fill text-primary me-2"></i>
+
+                        Sécurité
+
+                    </h5>
+
+                    <p class="mb-2">
+
+                        Cette interface est réservée exclusivement au personnel autorisé du Cabinet Dentaire ELQODS.
+
+                    </p>
+
+                    <p class="mb-0 text-muted">
+
+                        Toutes les connexions sont enregistrées et les accès sont contrôlés selon le rôle attribué à chaque utilisateur.
+
+                    </p>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</section>
+
+{% endblock %}

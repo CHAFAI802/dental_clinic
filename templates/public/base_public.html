@@ -1,0 +1,50 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <title>{% block title %}Cabinet Dentaire ELQODS{% endblock %}</title>
+
+    <meta name="description"
+        content="Cabinet Dentaire ELQODS - Soins dentaires, implantologie, orthodontie, esthétique dentaire.">
+
+    <meta name="author" content="Dr CHAFAI Alaa Eddine">
+
+    <link rel="icon" href="{% static 'images/favicon.ico' %}">
+
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.css" rel="stylesheet">
+
+    <!-- CSS personnalisé -->
+    <link rel="stylesheet" href="{% static 'css/public.css' %}">
+
+    {% block extra_css %}{% endblock %}
+</head>
+
+<body>
+
+    {% include "public/partials/navbar.html" %}
+
+    <main>
+
+        {% block content %}
+
+        {% endblock %}
+
+    </main>
+
+    {% include "public/partials/footer.html" %}
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
+
+    {% block extra_js %}{% endblock %}
+
+</body>
+
+</html>
