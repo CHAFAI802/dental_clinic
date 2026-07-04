@@ -1,7 +1,7 @@
 from django.conf import settings
 from django.contrib import admin
 from django.http import JsonResponse
-from django.urls import include, path
+from django.urls import include, path, re_path
 from django.views.generic import TemplateView
 
 from dental_clinic.api_registry import API_MODULES, get_accessible_modules
@@ -29,12 +29,6 @@ def api_links_json(request):
 
 
 urlpatterns = [
-    path('', TemplateView.as_view(template_name='public/home.html', extra_context={'api_links': API_LINKS}), name='home'),
-    path('services/', TemplateView.as_view(template_name='public/services.html'), name='services'),
-    path('team/', TemplateView.as_view(template_name='public/team.html'), name='team'),
-    path('team/profile', TemplateView.as_view(template_name='public/doctor_profile.html'), name='doctor-profile'),
-    path('contact/', TemplateView.as_view(template_name='public/contact.html'), name='contact'),
-    path("login/",TemplateView.as_view(template_name="public/login.html"),name="login"),
     path('admin/', admin.site.urls),
     path('api/links/', api_links_json, name='api-links'),
     path('api/', include('accounts.urls')),
@@ -51,6 +45,11 @@ urlpatterns = [
     path('api/', include('reports.urls')),
     path('api/', include('notifications.urls')),
     path('api/', include('imaging.urls')),
+    re_path(
+        r'^(?!api/|admin/|static/|media/|favicon\.ico|robots\.txt).*$',
+        TemplateView.as_view(template_name='public/app.html'),
+        name='spa',
+    ),
 ]
 
 if settings.DEBUG:

@@ -42,6 +42,45 @@
     {% include "public/partials/footer.html" %}
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const submitButton = document.getElementById('identity-submit');
+            const errorMessage = document.getElementById('identity-error');
+
+            if (!submitButton) {
+                return;
+            }
+
+            submitButton.addEventListener('click', async function () {
+                const email = document.getElementById('identity-email').value.trim();
+                const password = document.getElementById('identity-password').value;
+                const remember = document.getElementById('identity-remember').checked;
+
+                if (!email || !password) {
+                    errorMessage.textContent = 'Veuillez saisir votre adresse e-mail et votre mot de passe.';
+                    errorMessage.classList.remove('d-none');
+                    return;
+                }
+
+                try {
+                    const response = await fetch('/api/auth/login/', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email, password }),
+                    });
+                    const data = await response.json();
+                    if (!response.ok) {
+                        throw new Error(data.detail || 'Échec de la vérification.');
+                    }
+                    localStorage.setItem('authToken', data.token);
+                    window.location.href = '/app/';
+                } catch (err) {
+                    errorMessage.textContent = err.message;
+                    errorMessage.classList.remove('d-none');
+                }
+            });
+        });
+    </script>
 
     {% block extra_js %}{% endblock %}
 
