@@ -1,26 +1,236 @@
-# Python
+# ========================================
+# PYTHON
+# ========================================
 __pycache__/
 *.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+parts/
+var/
+sdist/
+develop-eggs/
+.installed.cfg
+lib/
+lib64/
+pip-log.txt
+pip-delete-this-directory.txt
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+*.cover
+.hypothesis/
+.prof
+.profile
 
-# Virtual environments
-.venv/
+# ========================================
+# VIRTUAL ENVIRONMENTS
+# ========================================
 venv/
+.venv/
+env/
 ENV/
+venv.bak/
+env.bak/
+.python-version
 
-# Environment variables
-.env
-
-# Django
+# ========================================
+# DJANGO SPECIFIC
+# ========================================
+*.log
+local_settings.py
 media/
 staticfiles/
+static_collected/
+mediafiles/
+uploaded_files/
+thumbnails/
 
-# Logs
-*.log
+# Database backups (if you export PostgreSQL dumps)
+*.sql
+*.psql
+*.dump
+*.backup
+db_backup/
+pg_dump/
 
-# IDE
+# ========================================
+# POSTGRESQL SPECIFIC
+# ========================================
+# PostgreSQL connection files
+.pgpass
+.pg_service.conf
+postgresql.conf.local
+pg_hba.conf.local
+
+# PostgreSQL data directory (if running local PostgreSQL in project)
+postgres-data/
+pgdata/
+data/pgdata/
+
+# PostgreSQL logs
+postgresql-*.log
+pg_log/
+logs/postgresql/
+
+# PostgreSQL dump files (avoid committing database dumps)
+*.backup
+*.sql.gz
+*.pgdump
+
+# ========================================
+# ENVIRONMENT VARIABLES
+# ========================================
+.env
+.env.local
+.env.*.local
+.env.dev
+.env.prod
+.env.staging
+
+# ========================================
+# FRONTEND (for future use)
+# ========================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Frontend build directories
+dist/
+build/
+out/
+.next/
+.nuxt/
+.vuepress/dist/
+.storybook-out/
+
+# CSS/JS generated files
+.sass-cache/
+*.css.map
+*.scss.map
+*.min.js
+*.min.css
+*.bundle.js
+*.chunk.js
+
+# ========================================
+# STATIC FILES (if generated)
+# ========================================
+static/CACHE/
+static/collected/
+static/bundles/
+webpack-stats.json
+stats.json
+
+# ========================================
+# IDE & EDITOR
+# ========================================
 .vscode/
 .idea/
+*.swp
+*.swo
+*~
+.ropeproject/
+.kubernetes/
+.project
+.pydevproject
+.settings/
+*.sublime-workspace
+*.sublime-project
 
-# OS
+# ========================================
+# OPERATING SYSTEM
+# ========================================
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
+desktop.ini
+*.tmp
+*.temp
+*.bak
+*.backup
+
+# ========================================
+# TESTING & COVERAGE
+# ========================================
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+*.py,cover
+htmlcov/
+.pytest_cache/
+.tox/
+.mypy_cache/
+hypothesis/
+unittest.xml
+test-reports/
+
+# ========================================
+# DEPLOYMENT
+# ========================================
+.elasticbeanstalk/
+.cache/
+.terraform/
+*.tfstate
+*.tfstate.*
+.aws-sam/
+.terraform.lock.hcl
+
+# ========================================
+# CELERY
+# ========================================
+celerybeat-schedule
+celerybeat.pid
+*.pid
+broker.db
+
+# ========================================
+# DOCKER
+# ========================================
+*.pid
+docker-compose.override.yml
+.dockerignore
+
+# ========================================
+# PYTHON PACKAGES
+# ========================================
+pip-wheel-metadata/
+share/python-wheels/
+*.whl
+
+# ========================================
+# JUPYTER
+# ========================================
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+*.pyc
+
+# ========================================
+# MISC
+# ========================================
+*.dmp
+*.dump
+*.core
+tags
+TAGS
+.venv.bak
+.env.bak
