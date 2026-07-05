@@ -1,4 +1,9 @@
-from tools.refactor.validators import PythonValidator
+from tools.refactor.validators import (
+    DjangoValidator,
+    DockerValidator,
+    GitValidator,
+    PythonValidator,
+)
 
 
 class Engine:
@@ -9,6 +14,9 @@ class Engine:
 
         self.validators = [
             PythonValidator(),
+            GitValidator(),
+            DockerValidator(),
+            DjangoValidator(),
         ]
 
     def run(self):
@@ -17,8 +25,9 @@ class Engine:
         print("Dental Engineering Toolkit")
         print(f"Version {self.VERSION}")
         print("=" * 50)
-
         print()
+
+        overall = True
 
         for validator in self.validators:
 
@@ -26,8 +35,18 @@ class Engine:
 
             status = "OK" if result.passed else "ERROR"
 
+            if not result.passed:
+                overall = False
+
             print(f"[{status}] {result.name}")
-
             print(f"      {result.message}")
-
             print()
+
+        print("=" * 50)
+
+        if overall:
+            print("Environment Status : READY")
+        else:
+            print("Environment Status : NOT READY")
+
+        print("=" * 50)

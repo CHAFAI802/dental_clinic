@@ -1,6 +1,6 @@
 import sys
 
-from .models import CheckResult
+from tools.refactor.models import CheckResult
 from tools.refactor.validators.base import BaseValidator
 
 

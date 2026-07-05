@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from tools.refactor.validators.models import CheckResult
+from tools.refactor.models import CheckResult
 
 
 class BaseValidator(ABC):
