@@ -111,6 +111,7 @@ pnpm-lock.yaml
 
 # Frontend build directories
 dist/
+dist-vite/
 build/
 out/
 .next/

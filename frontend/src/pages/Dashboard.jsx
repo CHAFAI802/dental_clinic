@@ -1,8 +1,22 @@
+import { Outlet } from 'react-router-dom'
+
+import DashboardHeader from '../components/dashboard/DashboardHeader.jsx'
+import DashboardSidebar from '../components/dashboard/DashboardSidebar.jsx'
+import { useAuth } from '../context/AuthContext.jsx'
+
 function Dashboard() {
+  const { accessibleModules } = useAuth()
+
   return (
-    <section className="page-shell">
-      <h1>Dashboard</h1>
-      <p>Page dashboard accessible depuis le front React.</p>
+    <section className="dashboard-shell">
+      <DashboardHeader />
+
+      <div className="dashboard-layout">
+        <DashboardSidebar modules={accessibleModules} />
+        <div className="dashboard-main">
+          <Outlet />
+        </div>
+      </div>
     </section>
   )
 }

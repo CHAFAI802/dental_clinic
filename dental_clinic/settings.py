@@ -9,7 +9,7 @@ env.read_env(BASE_DIR / '.env')
 
 SECRET_KEY = env('SECRET_KEY', default='changeme')
 DEBUG = env('DEBUG')
-ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['localhost'])
+ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['web'])
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -98,8 +98,8 @@ REST_FRAMEWORK = {
 }
 
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
 ]
 
 CORS_ALLOW_HEADERS = [

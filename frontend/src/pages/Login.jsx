@@ -1,31 +1,41 @@
 import { useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
+
+import { useAuth } from '../context/AuthContext.jsx'
 
 function Login() {
+  const navigate = useNavigate()
+  const location = useLocation()
+  const { login, isAuthenticated } = useAuth()
+
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+
+  const from = location.state?.from?.pathname || '/dashboard'
 
   const handleSubmit = async (event) => {
     event.preventDefault()
     setError('')
 
     try {
-      const response = await fetch('http://localhost:8000/api/auth/login/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      })
-
-      const data = await response.json()
-      if (!response.ok) {
-        throw new Error(data.detail || 'Login failed')
-      }
-
-      localStorage.setItem('authToken', data.token)
-      window.location.href = 'http://localhost:5173/app/'
+      await login({ email, password })
+      navigate(from, { replace: true })
     } catch (err) {
       setError(err.message)
     }
+  }
+
+  if (isAuthenticated) {
+    return (
+      <section className="page-shell">
+        <h1>Connexion</h1>
+        <p>Vous êtes déjà connecté.</p>
+        <button type="button" onClick={() => navigate('/dashboard')}>
+          Aller au dashboard
+        </button>
+      </section>
+    )
   }
 
   return (
