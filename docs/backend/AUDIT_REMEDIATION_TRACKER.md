@@ -63,6 +63,7 @@ Resolution requires recorded validation evidence.
 | FILE | File integrity and lifecycle |
 | AUD | Audit trail integrity |
 | WEB | Website domain |
+| SEC | Security configuration and operational hardening |
 | WF | Workflow orchestration |
 | POL | Policy-dependent findings |
 
@@ -93,7 +94,7 @@ Resolution requires recorded validation evidence.
 | R8 | File integrity and lifecycle |
 | R9 | Audit trail completeness |
 | R10 | Asynchronous and idempotent workflow hardening |
-
+| R11 | Security hardening |
 ## Master Finding Index
 
 | ID | Domain | Finding | Audit Evidence | Priority | Remediation Phase | Status |
@@ -104,7 +105,7 @@ Resolution requires recorded validation evidence.
 | SER-001 | Serializer and API write contract | ModelSerializer fields='__all__' exposes backend-controlled fields through broad writable API contracts. | SERIALIZER_CONTRACT_AUDIT.md — Executive summary, Unsafe writable field findings | P1 | R2 | OPEN |
 | SER-002 | Serializer and API write contract | Soft-delete fields is_deleted and deleted_at are client-writable on exposed soft-deletable resources. | SERIALIZER_CONTRACT_AUDIT.md — Model/serializer mismatch findings | P1 | R2 | OPEN |
 | SER-003 | Serializer and API write contract | Attribution and workflow audit-like fields are client-writable without server-side ownership enforcement. | SERIALIZER_CONTRACT_AUDIT.md — Unsafe writable field findings | P1 | R2 | OPEN |
-| SER-004 | Serializer and API write contract | User password is declared optional by the serializer contract but create() requires it. | SERIALIZER_CONTRACT_AUDIT.md — Model/serializer mismatch findings | P2 | R2 | OPEN |
+| SER-004 | Serializer and API write contract | User password is declared optional by the serializer contract but create() requires it; API user creation and password update also lack evidenced Django password-validator enforcement. | SERIALIZER_CONTRACT_AUDIT.md — Model/serializer mismatch findings; SECURITY_AUDIT.md — SEC-007 | P1 | R2 | OPEN |
 | SER-005 | Serializer and API write contract | AuditLogSerializer is writable by contract although current API exposure is read-only. | SERIALIZER_CONTRACT_AUDIT.md — Executive summary | P2 | R2 | OPEN |
 | SER-006 | Serializer and API write contract | Login request data is manually parsed without a serializer-defined request contract. | SERIALIZER_CONTRACT_AUDIT.md — Executive summary, Authentication request/response contract | P2 | R2 | OPEN |
 | SER-007 | Serializer and API write contract | New or modified domain records can reference soft-deleted patients because patient lifecycle eligibility is not enforced at writable API boundaries. | domain_coherence/G2_COHERENCE_TRACKER.md — G2-F17, G2-F21, G2-F28, G2-C8-F6, G2-C9-F8, G2-CHECK-09, G2-CHECK-10, G2-CHECK-11 | P1 | R2 | OPEN |
@@ -122,7 +123,17 @@ Resolution requires recorded validation evidence.
 | STATE-001 | State machine integrity | Appointment status can jump directly between any defined choices without transition enforcement. | STATE_MACHINE_AUDIT.md — Appointment.status | P1 | R5 | OPEN |
 | STATE-002 | State machine integrity | Appointment status choices are not enforced through ORM writes and invalid values can be persisted. | STATE_MACHINE_AUDIT.md — Appointment.status ORM bypass | P1 | R5 | OPEN |
 | STATE-003 | State machine integrity | Exposed workflow status fields accept arbitrary free-text values through the API. | STATE_MACHINE_AUDIT.md — exposed free-text status fields | P1 | R5 | OPEN |
-
+| AUTH-001 | Authorization | Patient-linked documents are exposed to every active staff role without patient, ownership, practitioner, or confidentiality scoping. | SECURITY_AUDIT.md — SEC-001 | P1 | R7 | OPEN |
+| FILE-001 | File integrity and lifecycle | Clinical file upload boundaries accept files without evidenced size, extension, MIME/content, or file-signature validation. | SECURITY_AUDIT.md — SEC-002 | P1 | R8 | OPEN |
+| AUTH-002 | Authorization | Login endpoint lacks evidenced throttling, lockout, or equivalent brute-force protection. | SECURITY_AUDIT.md — SEC-003 | P1 | R7 | OPEN |
+| AUTH-003 | Authorization | Authentication tokens are persistent and reused across login events without evidenced expiry, rotation, revocation, or per-session lifecycle enforcement. | SECURITY_AUDIT.md — SEC-004 | P1 | R7 | OPEN |
+| SEC-001 | Security configuration and operational hardening | Production Django transport and cookie security policy is not evidenced across the inspected settings and runtime configuration. | SECURITY_AUDIT.md — SEC-005 | P1 | R11 | OPEN |
+| SEC-002 | Security configuration and operational hardening | Django can start with a known static SECRET_KEY fallback when runtime configuration is absent. | SECURITY_AUDIT.md — SEC-006 | P1 | R11 | OPEN |
+| SEC-003 | Security configuration and operational hardening | Backend container does not enforce a non-root runtime identity. | SECURITY_AUDIT.md — SEC-008 | P1 | R11 | OPEN |
+| SEC-004 | Security configuration and operational hardening | Python dependencies are not reproducibly locked to exact resolved versions. | SECURITY_AUDIT.md — SEC-009 | P1 | R11 | OPEN |
+| SEC-005 | Security configuration and operational hardening | Development database credentials and PostgreSQL host exposure are embedded in Compose configuration. | SECURITY_AUDIT.md — SEC-010 | P1 | R11 | OPEN |
+| SEC-006 | Security configuration and operational hardening | Frontend dependency lockfiles are explicitly excluded from version control. | SECURITY_AUDIT.md — SEC-012 | P2 | R11 | OPEN |
+| AUTH-004 | Authorization | Transitional DRF authentication surface remains broader than the intended JWT architecture. | SECURITY_AUDIT.md — SEC-011 | P2 | R7 | OPEN |
 ## Remediation Tracking
 
 ### R1 — Deletion and data-retention integrity
