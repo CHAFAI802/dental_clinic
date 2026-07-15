@@ -1126,7 +1126,6 @@ Remediation is not complete until evidence proves:
 
 ---
 
-SEC-FP-001
 
 ## SEC-FP-001 — `.env.example` does not contain an observed production secret
 
