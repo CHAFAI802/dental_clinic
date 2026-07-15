@@ -106,10 +106,13 @@ Resolution requires recorded validation evidence.
 | SER-004 | Serializer and API write contract | User password is declared optional by the serializer contract but create() requires it. | SERIALIZER_CONTRACT_AUDIT.md — Model/serializer mismatch findings | P2 | R2 | OPEN |
 | SER-005 | Serializer and API write contract | AuditLogSerializer is writable by contract although current API exposure is read-only. | SERIALIZER_CONTRACT_AUDIT.md — Executive summary | P2 | R2 | OPEN |
 | SER-006 | Serializer and API write contract | Login request data is manually parsed without a serializer-defined request contract. | SERIALIZER_CONTRACT_AUDIT.md — Executive summary, Authentication request/response contract | P2 | R2 | OPEN |
+| SER-007 | Serializer and API write contract | New or modified domain records can reference soft-deleted patients because patient lifecycle eligibility is not enforced at writable API boundaries. | domain_coherence/G2_COHERENCE_TRACKER.md — G2-F17, G2-F21, G2-F28, G2-C8-F6, G2-C9-F8, G2-CHECK-09, G2-CHECK-10, G2-CHECK-11 | P1 | R2 | OPEN |
 | CONS-001 | Cross-model consistency | Invoice.patient can differ from the patient of its related treatment plan. | CROSS_MODEL_CONSISTENCY_AUDIT.md — B3-002 | P1 | R3 | OPEN |
 | CONS-002 | Cross-model consistency | Treatment.patient can differ from the patient of its referenced appointment. | CROSS_MODEL_CONSISTENCY_AUDIT.md — B3-003 | P1 | R3 | OPEN |
 | CONS-003 | Cross-model consistency | Treatment.patient can differ from the patient of its referenced treatment plan. | CROSS_MODEL_CONSISTENCY_AUDIT.md — B3-004 | P1 | R3 | OPEN |
 | CONS-004 | Cross-model consistency | TreatmentPlanApproval.patient can differ from the patient of its treatment plan. | CROSS_MODEL_CONSISTENCY_AUDIT.md — B3-005 | P1 | R3 | OPEN |
+| CONS-005 | Cross-model consistency | DocumentAttachment.patient can differ from the patient of its related document. | domain_coherence/G2_COHERENCE_TRACKER.md — G2-CHECK-11, Cross-Patient Attachment Inconsistency | P1 | R3 | OPEN |
+| CONS-006 | Cross-model consistency | ConsentForm.patient can differ from the patient of its related document. | domain_coherence/G2_COHERENCE_TRACKER.md — G2-CHECK-11, Cross-Patient Consent Inconsistency | P1 | R3 | OPEN |
 | RULE-001 | Business rules | Appointment accepts end_at less than or equal to start_at. | BUSINESS_RULE_MATRIX.md — Appointments end/start rule | P1 | R4 | OPEN |
 | RULE-002 | Business rules | Appointment scheduling accepts overlapping room, practitioner, or patient reservations. | BUSINESS_RULE_MATRIX.md — Appointments overlap rule | P1 | R4 | OPEN |
 | RULE-003 | Business rules | Payment accepts non-positive amounts and amounts exceeding the outstanding invoice balance. | BUSINESS_RULE_MATRIX.md — Billing payment amount rule | P0 | R4 | OPEN |
@@ -139,6 +142,7 @@ Findings assigned to R2:
 - SER-004
 - SER-005
 - SER-006
+- SER-007
 
 ### R3 — Cross-model consistency
 
@@ -148,6 +152,8 @@ Findings assigned to R3:
 - CONS-002
 - CONS-003
 - CONS-004
+- CONS-005
+- CONS-006
 
 ### R4 — Business rule enforcement
 
