@@ -25,6 +25,7 @@ The tracker covers verified findings from:
 - WEBSITE_DOMAIN_SPECIFICATION.md
 - WORKFLOW_AUDIT.md
 - BACKEND_BUSINESS_INTEGRITY_REMEDIATION_PLAN.md
+- SECURITY_AUDIT.md
 
 ## Tracker Rules
 
