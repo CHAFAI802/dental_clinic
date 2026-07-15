@@ -28,7 +28,7 @@ No remediation is applied during the audit phase.
 ## SEC-001 — Patient-linked documents are exposed to every staff role
 
 **Classification:** CONFIRMED VULNERABILITY  
-**Severity:** P0  
+**Severity:** P1
 **Status:** OPEN
 
 ### Evidence
@@ -102,7 +102,7 @@ Remediation is not complete until tests prove:
 ## SEC-002 — Clinical file upload boundaries lack evidenced file validation
 
 **Classification:** SECURITY GAP  
-**Severity:** P0  
+**Severity:** P1
 **Status:** OPEN
 
 ### Evidence
@@ -414,6 +414,14 @@ Repository-wide inspection did not evidence an alternative production settings m
 `docker-compose.yml` starts the Django application with:
 
 `python manage.py runserver 0.0.0.0:8000`
+
+The repository root `Dockerfile` defines Gunicorn as its default application command.
+
+Therefore, this finding does not claim that the repository lacks a production-capable WSGI server dependency or image command.
+
+However, the inspected `docker-compose.yml` overrides the image command and starts Django through `runserver`.
+
+The audited repository does not evidence a separate production Compose or deployment definition selecting the Gunicorn execution path together with the required transport security controls.
 
 The inspected Compose configuration does not evidence:
 
@@ -1118,5 +1126,65 @@ Remediation is not complete until evidence proves:
 
 ---
 
+SEC-FP-001
+
+## SEC-FP-001 — `.env.example` does not contain an observed production secret
+
+**Classification:** FALSE POSITIVE
+**Severity:** N/A
+**Status:** CLOSED
+
+### Evidence
+
+The repository root `.env.example` contains configuration examples and placeholder values intended to document required environment variables.
+
+The inspected example includes development-oriented values and explicitly non-production placeholder material.
+
+The repository `.gitignore` excludes `.env` and environment-specific variants from version control while retaining `.env.example`.
+
+Repository inspection did not evidence a production credential, production API token, private key, or confirmed production secret in `.env.example`.
+
+The documented PostgreSQL example credentials correspond to the development Compose configuration assessed separately in SEC-010.
+
+### Security conclusion
+
+The presence of `.env.example` in version control is not, by itself, evidence of secret exposure.
+
+The inspected file serves as a configuration template.
+
+No confirmed production secret was identified in the file at the audited repository state.
+
+Development credential policy and unsafe reuse outside development remain addressed separately by SEC-010.
+
+---
 
 
+## SEC-FP-002 — AuditLog API is not writable through its ViewSet
+
+**Classification:** FALSE POSITIVE
+**Severity:** N/A
+**Status:** CLOSED
+
+### Evidence
+
+The inspected `AuditLogViewSet` is implemented as a read-only DRF ViewSet.
+
+Its API exposure is restricted to read operations provided by the read-only ViewSet contract.
+
+The inspected ViewSet does not expose create, update, partial-update, or destroy actions for audit-log records.
+
+The API permission boundary also restricts audit-log access to the super-admin role.
+
+Repository inspection did not evidence an alternative writable audit-log API endpoint.
+
+The writable serializer-contract concern identified elsewhere does not establish a writable API route when the exposing ViewSet itself is read-only.
+
+### Security conclusion
+
+The concern that API clients can directly create, modify, or delete audit-log records through the inspected `AuditLogViewSet` is not supported by repository evidence.
+
+The audit-log API is read-only at the ViewSet boundary.
+
+Serializer contract hardening may still be addressed separately, but it does not constitute a confirmed writable audit-log API vulnerability.
+
+---
