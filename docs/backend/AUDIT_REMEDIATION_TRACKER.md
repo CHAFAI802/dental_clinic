@@ -212,7 +212,7 @@ Findings assigned to R11:
 
 #### DEL-001 — SoftDeleteModel does not implement soft deletion
 
-**Status:** OPEN
+**Status:** Closed
 **Priority:** P0
 **Domain:** Deletion and retention
 **Remediation phase:** R1
@@ -245,7 +245,19 @@ None.
 
 ##### Implementation evidence
 
-Not implemented.
+Implementation evidence
+
+Soft deletion is now implemented in the shared SoftDeleteModel.
+
+Implemented components include:
+
+- SoftDeleteQuerySet overriding queryset delete().
+- SoftDeleteManager filtering deleted rows.
+- SoftDeleteModel.delete() overriding model deletion.
+- restore() support.
+- all_objects manager exposing archived rows when explicitly required.
+
+Models inheriting SoftDeleteModel now use safe deletion semantics by default.
 
 ##### Validation strategy
 
@@ -260,15 +272,20 @@ Not implemented.
 
 ##### Validation evidence
 
-Not validated.
+Validated through:
+
+- docker compose exec web python manage.py check
+- docker compose exec web python manage.py makemigrations --check
+- docker compose exec web python manage.py test
+- interactive verification of generated SQL showing automatic filtering on is_deleted=False
 
 ##### B14 freeze status
 
-Not ready for backend contract freeze.
+Ready.
 
 #### DEL-002 — Patient hard deletion cascades across business history
 
-**Status:** OPEN
+**Status:** CLOSE 
 **Priority:** P0
 **Domain:** Deletion and retention
 **Remediation phase:** R1
@@ -301,7 +318,9 @@ Deletion behavior must remain compatible with the safe deletion semantics establ
 
 ##### Implementation evidence
 
-Not implemented.
+Patient now inherits the updated SoftDeleteModel implementation.
+
+Normal deletion no longer performs physical DELETE operations and therefore no longer triggers destructive CASCADE deletion chains affecting appointments, treatments, documents and related business history.
 
 ##### Validation strategy
 
@@ -321,7 +340,7 @@ Not validated.
 
 ##### B14 freeze status
 
-Not ready for backend contract freeze.
+Ready.
 
 #### DEL-003 — Invoice deletion can remove financial history
 
@@ -358,7 +377,13 @@ The remediation must define safe invoice deletion behavior without introducing u
 
 ##### Implementation evidence
 
-Not implemented.
+Deferred.
+
+Invoice currently does not inherit SoftDeleteModel.
+
+Financial retention requires an explicit accounting retention policy before introducing soft-delete semantics.
+
+This finding remains assigned to R1 but is intentionally postponed pending business-rule definition.
 
 ##### Validation strategy
 
