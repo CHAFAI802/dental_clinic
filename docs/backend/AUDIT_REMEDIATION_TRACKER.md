@@ -1536,113 +1536,191 @@ Not validated.
 ##### B14 freeze status
 
 Not ready for backend contract freeze.
-#### STATE-001 — Appointment status transitions are not enforced
+### STATE-001 — Remediation Specification
+
+#### Design objective
+
+Introduce an explicit backend state machine for `appointments.Appointment.status`.
+
+The current backend defines a status vocabulary but does not define or enforce lifecycle transitions.
+
+The objective of this remediation is to convert the existing status field into an explicit backend-controlled workflow without introducing undocumented behavior.
+
+This specification defines the backend contract that shall be implemented during R5.
+
+#### Verified existing behavior
+
+Derived from:
+
+- `STATE_MACHINE_AUDIT.md`
+- `accounts/tests/test_state_machine_audit.py`
+- source audit of `appointments.models`
+- source audit of `appointments.serializers`
+- source audit of `appointments.views`
+
+Verified facts:
+
+- `pending` is the initial status.
+- Existing status vocabulary:
+  - `pending`
+  - `confirmed`
+  - `completed`
+  - `cancelled`
+  - `no_show`
+- no transition policy exists;
+- no backend transition validation exists;
+- no automatic `AppointmentStatusLog` creation exists;
+- `confirmed_at` / `confirmed_by` are never automatically populated;
+- `cancelled_at` / `cancelled_by` are never automatically populated.
+
+#### State vocabulary
+
+The existing vocabulary remains unchanged.
+
+No additional workflow states are introduced.
+
+#### Initial state
+
+Initial appointment status:
+
+- `pending`
+
+#### Allowed transitions
+
+The appointment lifecycle shall be enforced as follows.
+
+| Current | Allowed next state |
+|----------|--------------------|
+| pending | confirmed, cancelled |
+| confirmed | completed, cancelled, no_show |
+| completed | none |
+| cancelled | none |
+| no_show | none |
+
+Any transition not listed above shall be rejected.
+
+#### Terminal states
+
+The following states become terminal:
+
+- completed
+- cancelled
+- no_show
+
+Terminal states cannot transition back to any previous state.
+
+#### Transition side effects
+
+Successful transitions shall keep workflow metadata synchronized.
+
+Transition to `confirmed` shall:
+
+- populate `confirmed_at` when missing;
+- populate `confirmed_by` when available.
+
+Transition to `cancelled` shall:
+
+- populate `cancelled_at` when missing;
+- populate `cancelled_by` when available.
+
+Every successful transition shall create an `AppointmentStatusLog` entry recording:
+
+- previous status;
+- new status;
+- transition timestamp;
+- acting user when available.
+
+#### Backend enforcement
+
+Transition validation shall be enforced by backend business logic.
+
+API clients shall not be responsible for enforcing workflow rules.
+
+Direct backend writes shall not bypass transition validation.
+
+#### Regression requirements
+
+Regression tests shall verify:
+
+- every allowed transition;
+- every forbidden transition;
+- terminal-state immutability;
+- automatic status-log creation;
+- synchronization of confirmation metadata;
+- synchronization of cancellation metadata;
+- API transition validation;
+- ORM transition validation where applicable.
+
+#### STATE-002 — Appointment status vocabulary is not enforced beyond serializer validation
 
 **Status:** OPEN
+
 **Priority:** P1
+
 **Domain:** State machine integrity
+
 **Remediation phase:** R5
 
 ##### Verified finding
 
-`Appointment.status` defines explicit Django choices for `pending`, `confirmed`, `completed`, `cancelled`, and `no_show`.
+`Appointment.status` defines the following Django model choices:
 
-The backend does not define or enforce an explicit transition policy between these states.
+- `pending`
+- `confirmed`
+- `completed`
+- `cancelled`
+- `no_show`
 
-Any valid status choice can therefore be changed directly to any other valid status choice without transition validation.
+The API serializer rejects undefined status values through DRF `ChoiceField` validation.
 
-##### Audit evidence
+The backend model itself does not enforce the declared status vocabulary during ORM writes.
 
-- `STATE_MACHINE_AUDIT.md`
-  - `Executive summary`
-  - `Appointment.status`
-  - `Any choice can be set from any other choice`
+Audit verification confirmed:
 
-##### Integrity risk
+- no `clean()` implementation on `Appointment`;
+- no `save()` override performing model validation;
+- no inherited validation from `SoftDeleteModel`;
+- no inherited validation from `TimestampedModel`;
+- no automatic `full_clean()` execution during persistence;
+- no database `CheckConstraint`;
+- no migration introducing a database constraint restricting `Appointment.status`.
 
-Appointment workflow state can bypass the intended business sequence.
-
-Terminal or workflow-sensitive states can be changed directly without explicit transition authorization or transition validation.
-
-This prevents the appointment lifecycle from being treated as an enforceable backend state machine.
-
-##### Required remediation
-
-Define and enforce an explicit transition policy for `Appointment.status`.
-
-Status changes must pass through backend-controlled transition logic that validates the current state and requested target state.
-
-The remediation must not invent unsupported workflow transitions without first deriving the intended lifecycle from verified backend behavior and project documentation.
-
-##### Dependencies
-
-None.
-
-##### Implementation evidence
-
-Not implemented.
-
-##### Validation strategy
-
-- verify explicitly allowed appointment status transitions are accepted,
-- verify forbidden appointment status transitions are rejected,
-- verify status cannot jump arbitrarily between defined choices,
-- verify transition validation applies to API writes,
-- verify transition validation applies to backend workflow paths,
-- add state-transition regression tests,
-- run `manage.py check`,
-- run the full Django test suite,
-- run `python3 -m compileall -q .`,
-- run `git diff --check`.
-
-##### Validation evidence
-
-Not validated.
-
-##### B14 freeze status
-
-Not ready for backend contract freeze.
-
-#### STATE-002 — Appointment status choices are not enforced through ORM writes
-
-**Status:** OPEN
-**Priority:** P1
-**Domain:** State machine integrity
-**Remediation phase:** R5
-
-##### Verified finding
-
-`Appointment.status` defines Django model choices for `pending`, `confirmed`, `completed`, `cancelled`, and `no_show`.
-
-The API serializer constrains the field through DRF `ChoiceField` behavior and rejects invalid status values.
-
-Direct ORM writes are not constrained by Django model choices.
-
-The ORM can therefore persist an arbitrary string in `Appointment.status`, and the database does not enforce the defined choices.
+Executable characterization tests further demonstrate that direct ORM writes can persist status values outside the declared appointment status vocabulary.
 
 ##### Audit evidence
 
+Verified by source audit of:
+
+- `appointments/models.py`
+- `dental_clinic/common.py`
+- `appointments/migrations`
+- `accounts/tests/test_state_machine_audit.py`
 - `STATE_MACHINE_AUDIT.md`
-  - `Executive summary`
-  - `Appointment.status`
-  - `ORM can save invalid values because Django choices are not DB-enforced`
-  - `test_orm_appointment_status_choices_not_enforced`
+
+Verified through:
+
+- inspection of `Appointment`;
+- inspection of inherited base models;
+- inspection of appointment migrations;
+- inspection of characterization tests proving ORM persistence of invalid status values.
 
 ##### Integrity risk
 
-Appointment records can contain status values outside the defined workflow vocabulary when written through ORM paths.
+Appointment records can contain workflow values outside the declared appointment status vocabulary.
 
-Backend code that assumes every persisted appointment status belongs to the declared choices can therefore operate on invalid workflow state.
+Backend code assuming every persisted appointment status belongs to the defined workflow vocabulary may therefore operate on invalid workflow state.
 
-API-level choice validation alone does not protect model or database integrity.
+API serializer validation alone does not protect model-level or database integrity.
 
 ##### Required remediation
 
-Enforce valid `Appointment.status` values beyond the API serializer boundary.
+Enforce the declared `Appointment.status` vocabulary independently of serializer validation.
 
-ORM-backed appointment writes must not persist status values outside the verified appointment status vocabulary.
+Direct ORM-backed writes shall reject undefined appointment status values.
 
-The remediation must remain compatible with the explicit transition enforcement required by STATE-001.
+The implemented validation shall remain fully compatible with the transition policy introduced by STATE-001.
+
+The remediation shall provide a single backend source of truth for appointment status vocabulary enforcement regardless of the write path.
 
 ##### Dependencies
 
@@ -1654,14 +1732,14 @@ Not implemented.
 
 ##### Validation strategy
 
-- verify direct ORM writes cannot persist an undefined appointment status,
-- verify all defined appointment status choices remain supported,
-- verify API rejection of invalid status values remains enforced,
-- verify status-value validation remains compatible with appointment transition enforcement,
-- add model and ORM status-integrity regression tests,
-- run `manage.py check`,
-- run the full Django test suite,
-- run `python3 -m compileall -q .`,
+- verify direct ORM writes reject undefined appointment status values;
+- verify all declared appointment status values remain accepted;
+- verify serializer validation remains unchanged;
+- verify model-level vocabulary validation remains compatible with transition enforcement;
+- add ORM vocabulary regression tests;
+- run `manage.py check`;
+- run the full Django test suite;
+- run `python3 -m compileall -q .`;
 - run `git diff --check`.
 
 ##### Validation evidence
@@ -1672,59 +1750,86 @@ Not validated.
 
 Not ready for backend contract freeze.
 
-#### STATE-003 — Exposed workflow status fields accept arbitrary free-text values
+#### STATE-003 — API-exposed workflow status fields are not constrained by an explicit backend state vocabulary
 
 **Status:** OPEN
+
 **Priority:** P1
+
 **Domain:** State machine integrity
+
 **Remediation phase:** R5
 
 ##### Verified finding
 
-Multiple workflow-oriented `status` fields are exposed through API serializers without explicit model choices or another verified constrained state vocabulary.
+Audit verification confirmed that multiple workflow-oriented models expose a writable `status` field through API serializers while defining the field as an unconstrained `CharField` without an explicit backend state vocabulary.
 
-The audited API paths accept arbitrary string values for exposed workflow status fields.
+Verified API-exposed workflow models include:
 
-Verified affected API-exposed models include:
+- `treatments.Treatment`
+- `treatment_plans.TreatmentPlan`
+- `prescriptions.Prescription`
+- `billing.Invoice`
+- `billing.Payment`
+- `documents.Document`
+- `notifications.Notification`
+- `imaging.ImagingStudy`
+- `staff.StaffProfile`
+- `odontogram.Tooth`
 
-- `treatments.Treatment`,
-- `treatment_plans.TreatmentPlan`,
-- `prescriptions.Prescription`,
-- `billing.Invoice`,
-- `billing.Payment`,
-- `documents.Document`,
-- `notifications.Notification`,
-- `imaging.ImagingStudy`,
-- `staff.StaffProfile`,
-- `odontogram.Tooth`.
+For each verified model:
 
-`Patient.marital_status` and `Tooth.surface_status` are excluded because the state-machine audit identifies them as data attributes rather than workflow states.
+- `status` is declared as a `CharField`;
+- no Django `choices` are defined for the field;
+- the serializer exposes the field through `fields = "__all__"`;
+- the resource is exposed through a writable `ModelViewSet`.
+
+The current backend therefore accepts arbitrary workflow status values through verified API write paths.
+
+Additional audited models also contain `status` fields but were not verified as API-exposed during this remediation audit and are therefore outside the scope of this finding.
+
+`patients.Patient.marital_status` and `odontogram.Tooth.surface_status` remain excluded because they represent data attributes rather than workflow lifecycle states.
 
 ##### Audit evidence
 
+Verified by source audit of:
+
 - `STATE_MACHINE_AUDIT.md`
-  - `Executive summary`
-  - `State machine matrix`
-  - exposed API paths accepting arbitrary status strings
-  - existing B5 status behavior tests where recorded
+- `treatments/models.py`
+- `treatment_plans/models.py`
+- `prescriptions/models.py`
+- `billing/models.py`
+- `documents/models.py`
+- `notifications/models.py`
+- `imaging/models.py`
+- `staff/models.py`
+- `odontogram/models.py`
+
+Verified by inspection of:
+
+- corresponding serializers;
+- corresponding `ModelViewSet` implementations;
+- B5 characterization tests where available.
 
 ##### Integrity risk
 
-Workflow state can be populated with arbitrary vocabulary through exposed API write paths.
+Workflow-oriented backend models accept arbitrary status vocabulary through verified API write paths.
 
-Backend logic cannot reliably reason about lifecycle state when persisted values are unconstrained and no explicit state vocabulary is defined.
+Different clients and backend components may therefore persist inconsistent lifecycle values for the same business workflow.
 
-Different clients or backend paths can introduce incompatible status values for the same workflow domain.
+Backend logic cannot reliably reason about workflow state when lifecycle vocabulary is not centrally defined and enforced.
 
 ##### Required remediation
 
-Define explicit, verified state vocabularies for API-exposed workflow status fields.
+Define an explicit backend vocabulary for every verified API-exposed workflow status field.
 
-API writes must reject status values outside the state vocabulary defined for the affected workflow model.
+API writes shall reject workflow status values outside the declared vocabulary.
 
-Where a field represents a true lifecycle state, status mutation must remain compatible with any explicit transition policy defined for that model.
+Where a status field represents a true lifecycle, its implementation shall remain compatible with any transition policy defined for that workflow.
 
-The remediation must not invent workflow states or transitions without first deriving them from verified backend behavior and project documentation.
+Workflow vocabularies shall be enforced by backend business logic rather than relying solely on serializer behavior.
+
+The remediation shall not introduce undocumented workflow states or transitions without verified business justification.
 
 ##### Dependencies
 
@@ -1736,14 +1841,14 @@ Not implemented.
 
 ##### Validation strategy
 
-- verify each affected API-exposed workflow status field rejects arbitrary undefined values,
-- verify explicitly defined status values remain accepted,
-- verify data attributes identified as non-workflow fields are not incorrectly converted into state machines,
-- verify serializer validation and backend model contracts remain aligned,
-- add API status-vocabulary regression tests for affected exposed models,
-- run `manage.py check`,
-- run the full Django test suite,
-- run `python3 -m compileall -q .`,
+- verify every verified API-exposed workflow status field rejects undefined status values;
+- verify every declared workflow status value remains accepted;
+- verify serializer behavior remains aligned with backend validation;
+- verify lifecycle models remain compatible with explicit transition enforcement where applicable;
+- add API and model regression tests covering workflow vocabulary enforcement;
+- run `manage.py check`;
+- run the full Django test suite;
+- run `python3 -m compileall -q .`;
 - run `git diff --check`.
 
 ##### Validation evidence
