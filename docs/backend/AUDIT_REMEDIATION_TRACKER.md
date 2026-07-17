@@ -2309,82 +2309,136 @@ Not validated.
 ##### B14 freeze status
 
 Not ready for backend contract freeze.
-#### FILE-001 — Clinical file upload boundaries lack evidenced file validation
+#### FILE-001 — Clinical file upload boundaries lack verified file validation
 
 **Status:** OPEN
+
 **Priority:** P1
+
 **Domain:** File integrity and lifecycle
+
 **Remediation phase:** R8
 
-##### Verified finding
+##### Design objective
 
-The backend defines multiple clinical file storage fields, including patient attachments, imaging files, document attachments, generated document PDFs, and generated prescription PDFs.
+Introduce a single authoritative backend policy governing every clinical file accepted from external clients.
 
-`PatientAttachment.file`, `ImagingInstance.file`, and `DocumentAttachment.file` expose stored clinical file boundaries through Django `FileField` definitions.
+The remediation shall define a centralized validation architecture that is consistently enforced across every clinical upload boundary before any uploaded content is persisted or becomes reachable through application storage.
 
-The inspected clinical upload boundaries do not evidence centralized validation for maximum file size, allowed extensions, declared MIME type, actual file content or file signature, or malformed supported-file structure.
+The objective is to establish one verified source of truth for clinical file acceptance rather than independent validation logic implemented inside individual serializers or viewsets.
 
-`dental_clinic/settings.py` defines media storage configuration but does not evidence an authoritative application-level clinical upload policy defining accepted file formats and bounded file sizes.
+##### Verified implementation baseline
 
-The existing file-integrity characterization tests evidence that unsafe or inconsistent upload content can reach writable API boundaries, including executable-extension uploads and MIME/extension mismatches.
+The current repository defines multiple persistent clinical file fields.
 
-For imaging records, the writable `ImagingInstanceViewSet` provides a directly evidenced API upload boundary.
+The audit verified the following upload-related model fields:
 
-The repository also defines `DICOMConfiguration`, but the inspected upload boundary does not evidence a dedicated DICOM validation policy or DICOM structural validation.
+- `patients.PatientAttachment.file`
+- `documents.DocumentAttachment.file`
+- `imaging.ImagingInstance.file`
 
-##### Audit evidence
+The repository also defines generated document storage fields:
 
-- `SECURITY_AUDIT.md`
-  - `SEC-002 — Clinical file upload boundaries lack evidenced file validation`
-  - missing size validation
-  - missing extension validation
-  - missing MIME-type validation
-  - missing file-signature or magic-byte validation
-  - missing malformed-file rejection where structural validation is required
-  - missing dedicated DICOM validation policy where DICOM is supported
-- backend models
-  - `patients/models.py::PatientAttachment.file`
-  - `imaging/models.py::ImagingInstance.file`
-  - `documents/models.py::DocumentAttachment.file`
-  - `documents/models.py::Document.pdf_file`
-  - `prescriptions/models.py::Prescription.pdf_file`
-  - `imaging/models.py::DICOMConfiguration`
-- characterization tests
-  - `accounts/tests/test_file_integrity_audit.py`
-  - executable-extension upload acceptance
-  - MIME and extension mismatch acceptance
-- media configuration
-  - `dental_clinic/settings.py`
+- `documents.Document.pdf_file`
+- `prescriptions.Prescription.pdf_file`
 
-##### Integrity risk
+The latter currently represent backend-generated document storage and are not evidenced as client upload boundaries.
 
-A client reaching a writable clinical upload boundary may submit a file whose size, filename extension, declared MIME type, or actual content does not match the intended clinical file policy.
+The inspected implementation does not evidence:
 
-Filename and client-declared MIME metadata are not sufficient evidence of actual file content.
+- centralized upload validation;
+- reusable upload validation service;
+- extension validation;
+- MIME validation;
+- binary signature validation (magic bytes);
+- structural validation of accepted formats;
+- centralized upload size enforcement;
+- authoritative upload policy.
 
-Without content-signature or structural validation where required, malformed or disguised files may be stored as clinical records.
+The inspected serializers expose writable file fields without dedicated validation methods.
 
-For medical imaging formats, generic file acceptance does not establish that uploaded content is valid DICOM or another explicitly supported imaging format.
+No dedicated upload parser configuration was evidenced.
 
-This finding does not claim that malicious content has been uploaded.
+No reusable upload validator was evidenced.
 
-It identifies the absence of evidenced preventive validation at clinical file ingestion boundaries.
+Characterization tests already demonstrate that malformed or inconsistent uploads can currently be persisted.
 
-##### Required remediation
+##### Architecture requirements
 
-Define and document a centralized clinical file upload policy before modifying individual models, serializers, or views.
+Clinical upload validation shall become a centralized backend service.
 
-The policy must explicitly define allowed file categories per clinical boundary, maximum file size, allowed extensions, declared MIME-type validation, actual content or file-signature validation, malformed-file rejection requirements, storage naming and path requirements, duplicate-file handling, replacement behavior, deletion behavior, rejected-upload audit requirements, and DICOM-specific validation if DICOM upload is supported.
+Individual serializers, models and viewsets must delegate upload validation to this common implementation.
 
-Apply reusable validation controls consistently to writable patient attachment, imaging, and document attachment boundaries.
+Validation behavior shall remain identical regardless of the API endpoint receiving the upload.
 
-Generated server-side PDF fields must be distinguished from client-controlled upload boundaries and validated according to their actual lifecycle.
+No upload endpoint may define a weaker validation policy than another endpoint.
 
-Do not rely solely on filename extensions or client-declared MIME types as evidence of file content.
+##### Required upload policy
 
-Define a dedicated validation policy for DICOM or other medical imaging formats if those formats remain supported.
+The backend shall explicitly define:
 
-Rejected uploads must not create valid clinical domain records and must produce audit evidence according to the documented policy.
+- accepted clinical file categories;
+- accepted extensions for each category;
+- accepted MIME types;
+- maximum upload size for each category;
+- binary signature validation requirements;
+- structural validation requirements for supported medical formats;
+- rejection behavior;
+- audit behavior;
+- error response format.
+
+The upload policy shall become the single authoritative backend reference for every future upload feature.
+
+##### File authenticity requirements
+
+File acceptance shall not rely solely on:
+
+- filename;
+- extension;
+- client-declared MIME type.
+
+Actual file content shall be validated before persistence.
+
+Where applicable, binary signature verification shall be performed.
+
+Medical file formats requiring structural integrity shall undergo dedicated structural validation before acceptance.
+
+##### DICOM requirements
+
+The repository already defines DICOM-related functionality.
+
+Clinical imaging uploads shall therefore include an explicit DICOM validation policy.
+
+The implementation shall define:
+
+- supported DICOM transfer syntax expectations where applicable;
+- minimum structural validation;
+- rejection behavior for malformed studies;
+- rejection behavior for non-DICOM files presented as DICOM.
+
+##### Storage requirements
+
+Files shall not become permanently stored until validation succeeds.
+
+Rejected uploads shall not leave orphaned files.
+
+Validation failure shall not create inconsistent database state.
+
+Temporary upload handling shall remain consistent with Django storage behavior.
+
+##### Error handling requirements
+
+Validation failures shall produce deterministic responses.
+
+Responses shall not expose unnecessary implementation details.
+
+Validation behavior shall remain consistent across every upload endpoint.
+
+##### Future extensibility
+
+The validation framework shall support future clinical upload types without duplicating validation logic.
+
+New upload endpoints shall consume the centralized validation service instead of implementing endpoint-specific validation.
 
 ##### Dependencies
 
@@ -2396,25 +2450,22 @@ Not implemented.
 
 ##### Validation strategy
 
-- verify files within the documented size limit are accepted,
-- verify oversized files are rejected,
-- verify allowed extensions are accepted according to boundary policy,
-- verify forbidden extensions are rejected,
-- verify extension and declared MIME mismatches are rejected,
-- verify declared MIME type and actual content mismatches are rejected,
-- verify file-signature or content validation follows the documented policy,
-- verify malformed supported files are rejected where structural validation is required,
-- verify rejected uploads do not create valid clinical domain records,
-- verify rejected upload attempts produce the required audit evidence,
-- verify patient attachment upload validation,
-- verify imaging upload validation,
-- verify document attachment upload validation,
-- verify generated server-side PDFs remain functional under their defined lifecycle,
-- verify DICOM-specific validation if DICOM upload remains supported,
-- add clinical upload security regression tests,
-- run `manage.py check`,
-- run the full Django test suite,
-- run `python3 -m compileall -q .`,
+- verify every client upload boundary uses the centralized validation service;
+- verify accepted extensions follow the documented policy;
+- verify rejected extensions cannot be persisted;
+- verify declared MIME type alone cannot bypass validation;
+- verify binary signature validation rejects mismatched content;
+- verify malformed supported files are rejected;
+- verify oversized uploads are rejected;
+- verify valid uploads remain accepted;
+- verify rejected uploads leave no persisted file;
+- verify rejected uploads leave no inconsistent database state;
+- verify DICOM validation rejects malformed datasets;
+- verify every upload endpoint returns consistent validation errors;
+- add centralized upload validation regression tests;
+- run `manage.py check`;
+- run the full Django test suite;
+- run `python3 -m compileall -q .`;
 - run `git diff --check`.
 
 ##### Validation evidence
