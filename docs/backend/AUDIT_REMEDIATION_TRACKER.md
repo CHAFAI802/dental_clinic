@@ -1125,43 +1125,63 @@ Not ready for backend contract freeze.
 
 The backend accepts an `Appointment` whose `end_at` is less than or equal to `start_at`.
 
-The invalid chronological interval is accepted by the current backend.
+Neither the model nor the serializer nor the API layer enforces that an appointment ends after it starts.
+
+The current backend therefore permits invalid chronological appointment intervals.
 
 ##### Audit evidence
 
-- `BUSINESS_RULE_MATRIX.md`
-  - Appointments — `end_at > start_at`
+* `BUSINESS_RULE_MATRIX.md`
+
+  * `Appointments — end_at > start_at`
 
 ##### Integrity risk
 
-An appointment can end before it starts or have a zero-duration interval.
+Appointments may be stored with impossible chronological intervals.
 
-This creates invalid scheduling records and undermines duration, availability, and overlap calculations.
+Such records can break scheduling logic, duration calculations, reporting, availability computation and downstream business workflows.
 
 ##### Required remediation
 
-Enforce chronological consistency for appointment intervals.
+Enforce chronological consistency for appointments.
 
-`Appointment.end_at` must be strictly greater than `Appointment.start_at`.
+`Appointment.end_at` must always be strictly greater than `Appointment.start_at`.
+
+The validation should be enforced at the model and serializer layers.
+
+Where supported by the database backend, add a database-level check constraint to prevent invalid intervals independently of the application layer.
 
 ##### Dependencies
 
-None.
+None identified during audit.
 
 ##### Implementation evidence
 
-Not implemented.
+Verified during audit:
+
+* `appointments/models.py`
+  * no `clean()`
+  * no chronological validation
+  * no database `CheckConstraint`
+* `appointments/serializers.py`
+  * no `validate()`
+  * no cross-field validation
+* `appointments/views.py`
+  * no `perform_create()` or `perform_update()` validation
+* `accounts/tests/test_business_rules.py`
+  * characterization test documents that no implementation currently enforces `end_at > start_at`
 
 ##### Validation strategy
 
-- verify appointments with `end_at < start_at` are rejected,
-- verify appointments with `end_at == start_at` are rejected,
-- verify appointments with `end_at > start_at` remain accepted,
-- add API and model business-rule regression tests,
-- run `manage.py check`,
-- run the full Django test suite,
-- run `python3 -m compileall -q .`,
-- run `git diff --check`.
+* verify ORM rejects `end_at <= start_at`,
+* verify serializer rejects invalid chronological intervals,
+* verify valid appointments remain accepted,
+* verify update operations cannot introduce invalid intervals,
+* add regression tests,
+* run `manage.py check`,
+* run the full Django test suite,
+* run `python3 -m compileall -q .`,
+* run `git diff --check`.
 
 ##### Validation evidence
 
@@ -1180,47 +1200,69 @@ Not ready for backend contract freeze.
 
 ##### Verified finding
 
-The backend accepts overlapping appointment intervals for the same room, practitioner, or patient.
+The backend accepts overlapping appointment intervals for the same practitioner.
 
-The current scheduling contract does not enforce reservation overlap constraints.
+Neither the model nor the serializer nor the API layer enforces scheduling conflict detection.
+
+The current backend therefore permits overlapping appointment reservations.
 
 ##### Audit evidence
 
-- `BUSINESS_RULE_MATRIX.md`
-  - Appointments — overlap constraints for room, practitioner, and patient scheduling
+* `BUSINESS_RULE_MATRIX.md`
+
+  * `Appointments — no overlap constraints for room/practitioner/patient scheduling`
 
 ##### Integrity risk
 
-Multiple appointments can reserve the same room, practitioner, or patient during overlapping time intervals.
+Multiple appointments may be scheduled simultaneously for the same practitioner, room, or patient.
 
-This creates conflicting schedules and allows operationally impossible appointment reservations.
+This can create impossible schedules, double bookings, resource conflicts, inconsistent availability calculations, and unreliable downstream clinical workflows.
 
 ##### Required remediation
 
-Enforce appointment overlap constraints for shared scheduling resources.
+Enforce appointment overlap validation before creating or updating appointments.
 
-An appointment interval must not overlap another active appointment interval for the same room, practitioner, or patient.
+The backend must reject overlapping reservations for the same practitioner.
+
+The final scheduling policy shall also define whether overlap prevention applies to rooms, patients, or additional scheduling resources.
+
+The validation should be enforced at the model and serializer layers.
+
+Where concurrent appointment creation is possible, the implementation should use an atomic strategy to prevent race conditions.
 
 ##### Dependencies
 
-- RULE-001
+* CONC-001
+* WORKFLOW-001
+* STATE-001
 
 ##### Implementation evidence
 
-Not implemented.
+Verified during audit:
+
+* `appointments/models.py`
+  * no scheduling conflict detection
+  * no availability validation
+  * no overlap query
+* `appointments/serializers.py`
+  * no `validate()`
+  * no cross-field overlap validation
+* `appointments/views.py`
+  * no `perform_create()` or `perform_update()` scheduling validation
+* `accounts/tests/test_business_rules.py`
+  * characterization test confirms overlapping appointments for the same practitioner are currently accepted (`HTTP 201`)
 
 ##### Validation strategy
 
-- verify overlapping appointments for the same room are rejected,
-- verify overlapping appointments for the same practitioner are rejected,
-- verify overlapping appointments for the same patient are rejected,
-- verify non-overlapping appointments remain accepted,
-- verify adjacent intervals remain supported,
-- add API and model scheduling regression tests,
-- run `manage.py check`,
-- run the full Django test suite,
-- run `python3 -m compileall -q .`,
-- run `git diff --check`.
+* verify overlapping appointments for the same practitioner are rejected,
+* verify non-overlapping appointments remain accepted,
+* verify update operations cannot introduce scheduling conflicts,
+* verify concurrent appointment creation cannot create double bookings,
+* add API and model business-rule regression tests,
+* run `manage.py check`,
+* run the full Django test suite,
+* run `python3 -m compileall -q .`,
+* run `git diff --check`.
 
 ##### Validation evidence
 
@@ -1232,64 +1274,81 @@ Not ready for backend contract freeze.
 
 #### RULE-003 — Payment accepts invalid amounts and invoice overpayment
 
-**Status:** OPEN
-**Priority:** P0
-**Domain:** Business rules
+**Status:** OPEN  
+**Priority:** P0  
+**Domain:** Business rules  
 **Remediation phase:** R4
 
 ##### Verified finding
 
-The backend accepts a `Payment` with a non-positive amount.
+The backend accepts a `Payment` whose amount is zero or negative.
 
 The backend also accepts a payment amount exceeding the outstanding balance of its related invoice.
 
-These invalid billing states are accepted by the current backend.
+Neither the model nor the serializer nor the API layer validates payment amount or invoice balance consistency.
+
+The current backend therefore permits invalid payment amounts and invoice overpayments.
 
 ##### Audit evidence
 
-- `BUSINESS_RULE_MATRIX.md`
-  - Billing — payment amount must be positive and less than or equal to outstanding balance
+* `BUSINESS_RULE_MATRIX.md`
+
+  * `Billing — payment amount must be positive and <= outstanding balance`
 
 ##### Integrity risk
 
-A zero or negative payment can corrupt payment history and financial calculations.
+Payments with non-positive amounts can corrupt financial records and reporting.
 
-An excessive payment can overpay an invoice and produce an invalid negative outstanding balance.
+Payments exceeding the invoice balance can overpay invoices and produce inconsistent accounting data.
 
-This undermines billing integrity and financial reporting.
+These conditions undermine billing integrity and downstream financial calculations.
 
 ##### Required remediation
 
-Enforce payment amount and invoice balance integrity.
+Enforce payment amount and invoice balance consistency.
 
-`Payment.amount` must be strictly greater than zero.
+`Payment.amount` must always be strictly greater than zero.
 
-A payment amount must not exceed the current outstanding balance of its related invoice.
+`Payment.amount` must never exceed the outstanding balance of its related invoice.
 
-Payment validation and invoice balance updates must be performed atomically.
+The validation should be enforced at the model and serializer layers.
+
+Where appropriate, database constraints should protect simple numeric invariants, while invoice balance validation should remain an application-level business rule.
 
 ##### Dependencies
 
-- SER-001
-- RULE-004
+* BILL-001
+* WORKFLOW-001
 
 ##### Implementation evidence
 
-Not implemented.
+Verified during audit:
+
+* `billing/models.py`
+  * no `clean()`
+  * no payment amount validation
+  * no invoice balance validation
+  * no `CheckConstraint`
+* `billing/serializers.py`
+  * no `validate()`
+  * no `validate_amount()`
+  * no cross-field validation
+* `billing/views.py`
+  * no `perform_create()` or `perform_update()` validation
+* `accounts/tests/test_business_rules.py`
+  * characterization tests document that negative payments and invoice overpayments are currently accepted
 
 ##### Validation strategy
 
-- verify zero-value payments are rejected,
-- verify negative payments are rejected,
-- verify payments exceeding the outstanding invoice balance are rejected,
-- verify payments equal to the outstanding balance remain accepted,
-- verify partial payments remain accepted,
-- verify concurrent payment operations cannot overpay an invoice,
-- add API and model billing regression tests,
-- run `manage.py check`,
-- run the full Django test suite,
-- run `python3 -m compileall -q .`,
-- run `git diff --check`.
+* verify payments with `amount <= 0` are rejected,
+* verify payments exceeding the invoice balance are rejected,
+* verify valid payments remain accepted,
+* verify update operations cannot introduce invalid payment amounts or overpayments,
+* add regression tests,
+* run `manage.py check`,
+* run the full Django test suite,
+* run `python3 -m compileall -q .`,
+* run `git diff --check`.
 
 ##### Validation evidence
 
@@ -1301,58 +1360,98 @@ Not ready for backend contract freeze.
 
 #### RULE-004 — Calculated invoice totals and balances are client-writable
 
-**Status:** OPEN
-**Priority:** P0
-**Domain:** Business rules
+**Status:** OPEN  
+**Priority:** P0  
+**Domain:** Business rules  
 **Remediation phase:** R4
 
 ##### Verified finding
 
-The current invoice API contract exposes calculated totals and balance fields as writable client-controlled data.
+The current backend exposes calculated invoice financial fields as writable client-controlled values.
 
-The serializer contract does not enforce server ownership of these financial values.
+Neither the model nor the serializer nor the API layer enforces server ownership of invoice totals, taxes, paid amounts, or outstanding balances.
+
+The backend also performs no automatic recalculation of these values after invoice creation or payment registration.
+
+The current implementation therefore permits clients to submit arbitrary financial values that remain stored as authoritative invoice data.
 
 ##### Audit evidence
 
-- `BUSINESS_RULE_MATRIX.md`
-  - Billing — calculated invoice totals and balances should not be client-writable
-- `SERIALIZER_CONTRACT_AUDIT.md`
-  - Unsafe writable field findings
+* `BUSINESS_RULE_MATRIX.md`
+
+  * `Billing — invoice totals/balances are calculated and should not be client-writable`
+
+* `accounts/tests/test_business_rules.py`
+
+  * `test_invoice_negative_total_amount_is_accepted`
+
+* `accounts/tests/test_end_to_end_business_workflows.py`
+
+  * payment creation does not update `paid_amount`
+  * payment creation does not update `balance_due`
 
 ##### Integrity risk
 
-A client can submit or modify calculated financial values independently of invoice line items and payment history.
+Clients can create or modify invoice totals, tax amounts, paid amounts, and outstanding balances independently of invoice line items and accepted payments.
 
-This can create inconsistent totals, incorrect outstanding balances, and unreliable financial reporting.
+Because these values are neither protected nor recalculated by the backend, invoices may permanently contain inconsistent financial information.
+
+This compromises billing integrity, financial reporting, payment reconciliation, and every downstream workflow relying on invoice balances.
 
 ##### Required remediation
 
-Make calculated invoice totals and balances server-controlled.
+Enforce exclusive server ownership of calculated invoice financial values.
 
-Calculated financial fields must be read-only through the API contract.
+Invoice totals, tax amounts, paid amounts, and outstanding balances must never be accepted as authoritative client input.
 
-Invoice totals and outstanding balances must be derived from authoritative billing data on the server.
+These values must always be calculated from authoritative billing data, including invoice line items, accepted payments, taxes, and credit notes where applicable.
+
+The serializer should expose calculated financial fields as read-only, while the backend remains solely responsible for computing and updating them.
 
 ##### Dependencies
 
-- SER-001
+* SER-001
+* BILL-001
+* WORKFLOW-001
 
 ##### Implementation evidence
 
-Not implemented.
+Verified during audit:
+
+* `billing/models.py`
+  * `total_amount`, `tax_amount`, `paid_amount`, and `balance_due` are ordinary writable model fields
+  * no automatic calculation logic
+  * no `clean()`
+  * no overridden `save()`
+* `billing/serializers.py`
+  * `InvoiceSerializer`
+    * `fields = '__all__'`
+    * no `read_only_fields`
+    * no `validate()`
+    * no protection against client-supplied calculated values
+* `billing/views.py`
+  * no `perform_create()`
+  * no `perform_update()`
+  * no server-side recalculation of financial values
+* `accounts/tests/test_business_rules.py`
+  * characterization test demonstrates that clients can submit a negative `total_amount`
+* `accounts/tests/test_end_to_end_business_workflows.py`
+  * payment creation does not automatically update `paid_amount`
+  * payment creation does not automatically update `balance_due`
 
 ##### Validation strategy
 
-- verify clients cannot set calculated invoice totals during creation,
-- verify clients cannot modify calculated invoice totals during update,
-- verify clients cannot set or modify outstanding balance values,
-- verify invoice totals are derived from authoritative billing data,
-- verify outstanding balances reflect accepted payments,
-- add API billing contract regression tests,
-- run `manage.py check`,
-- run the full Django test suite,
-- run `python3 -m compileall -q .`,
-- run `git diff --check`.
+* verify clients cannot submit calculated totals during invoice creation,
+* verify clients cannot modify calculated totals during invoice updates,
+* verify clients cannot directly modify tax amounts, paid amounts, or outstanding balances,
+* verify invoice totals are calculated from invoice line items,
+* verify accepted payments automatically update invoice balances,
+* verify credit notes correctly affect outstanding balances where applicable,
+* add billing API regression tests,
+* run `manage.py check`,
+* run the full Django test suite,
+* run `python3 -m compileall -q .`,
+* run `git diff --check`.
 
 ##### Validation evidence
 
@@ -1361,7 +1460,6 @@ Not validated.
 ##### B14 freeze status
 
 Not ready for backend contract freeze.
-
 #### RULE-005 — Inventory stock quantities can become negative
 
 **Status:** OPEN
@@ -1371,28 +1469,33 @@ Not ready for backend contract freeze.
 
 ##### Verified finding
 
-The backend accepts inventory state changes that allow stock quantities to become negative.
+The backend accepts inventory records whose `stock_quantity` is less than zero.
 
-The current inventory contract does not enforce a non-negative stock invariant.
+Neither the model nor the serializer nor the API layer enforces a non-negative inventory quantity.
+
+The current backend therefore permits invalid inventory states.
 
 ##### Audit evidence
 
-- `BUSINESS_RULE_MATRIX.md`
-  - Inventory — stock quantities must not go negative
+* `BUSINESS_RULE_MATRIX.md`
+
+  * `Inventory — stock quantities must not go negative`
 
 ##### Integrity risk
 
-Inventory records can represent unavailable negative quantities.
+Inventory records may contain impossible negative quantities.
 
-This creates unreliable stock availability, invalid inventory reporting, and can allow operations to consume stock that does not exist.
+Negative stock values can corrupt inventory valuation, stock availability, replenishment logic, purchasing decisions and downstream inventory workflows.
 
 ##### Required remediation
 
-Enforce non-negative inventory stock quantities.
+Enforce the non-negative inventory invariant.
 
-Inventory quantities must remain greater than or equal to zero after every stock-changing operation.
+`InventoryItem.stock_quantity` must always be greater than or equal to zero.
 
-Stock validation and quantity updates must be performed atomically.
+The validation should be enforced at the model and serializer layers.
+
+Where supported by the database backend, add a database-level `CheckConstraint` to prevent negative stock independently of the application layer.
 
 ##### Dependencies
 
@@ -1400,20 +1503,31 @@ None.
 
 ##### Implementation evidence
 
-Not implemented.
+Verified during audit:
+
+* `inventory/models.py`
+  * no `clean()`
+  * no non-negative validation
+  * no database `CheckConstraint`
+* `inventory/serializers.py`
+  * no `validate()`
+  * no business-rule validation
+* `inventory/views.py`
+  * no `perform_create()` or `perform_update()` validation
+* `accounts/tests/test_business_rules.py`
+  * characterization test documents that negative `stock_quantity` values are currently accepted
 
 ##### Validation strategy
 
-- verify direct negative stock quantities are rejected,
-- verify stock-changing operations cannot reduce quantity below zero,
-- verify valid stock reductions remain accepted,
-- verify stock can reach exactly zero,
-- verify concurrent stock operations cannot produce negative quantities,
-- add API and model inventory regression tests,
-- run `manage.py check`,
-- run the full Django test suite,
-- run `python3 -m compileall -q .`,
-- run `git diff --check`.
+* verify negative stock quantities are rejected,
+* verify zero stock remains accepted,
+* verify positive stock quantities remain accepted,
+* verify update operations cannot introduce negative stock,
+* add API and model inventory regression tests,
+* run `manage.py check`,
+* run the full Django test suite,
+* run `python3 -m compileall -q .`,
+* run `git diff --check`.
 
 ##### Validation evidence
 
@@ -1422,7 +1536,6 @@ Not validated.
 ##### B14 freeze status
 
 Not ready for backend contract freeze.
-
 #### STATE-001 — Appointment status transitions are not enforced
 
 **Status:** OPEN
