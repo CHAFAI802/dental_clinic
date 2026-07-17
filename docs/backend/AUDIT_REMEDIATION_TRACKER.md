@@ -1937,7 +1937,7 @@ Not validated.
 ##### B14 freeze status
 
 Not ready for backend contract freeze.
-#### AUTH-002 — Login endpoint lacks evidenced brute-force protection
+#### AUTH-002 — Login endpoint lacks verified brute-force protection
 
 **Status:** OPEN
 **Priority:** P1
@@ -1946,49 +1946,107 @@ Not ready for backend contract freeze.
 
 ##### Verified finding
 
-`LoginView` exposes `/api/auth/login/` with `authentication_classes = []` and `permission_classes = [AllowAny]`.
+`LoginView` exposes `/api/auth/login/` as an anonymous authentication endpoint through:
 
-The login view does not define a dedicated DRF throttle class.
+- `authentication_classes = []`
+- `permission_classes = [AllowAny]`
 
-The authentication service records login attempts through `log_login_attempt()` and persists source IP, user agent, and success or failure state in `UserLoginHistory`.
+Successful and failed authentication attempts are processed exclusively through `login_with_token()`.
 
-The inspected authentication flow does not use this history to enforce an attempt threshold, temporary lockout, progressive delay, account-based rate limiting, or IP-based rate limiting.
+Failed authentication attempts are recorded using `log_login_attempt()`, which persists audit information through `UserLoginHistory`.
 
-The project settings do not define `DEFAULT_THROTTLE_CLASSES` or `DEFAULT_THROTTLE_RATES`.
+The verified authentication flow does not enforce:
 
-No alternative middleware or authentication backend was evidenced as enforcing brute-force protection at the login boundary.
+- failed-attempt thresholds;
+- temporary account lockout;
+- progressive delays;
+- cooldown windows;
+- account-based rate limiting;
+- IP-based rate limiting;
+- authentication throttling.
+
+The project configuration does not define:
+
+- `REST_FRAMEWORK.DEFAULT_THROTTLE_CLASSES`;
+- `REST_FRAMEWORK.DEFAULT_THROTTLE_RATES`;
+- custom `AUTHENTICATION_BACKENDS`.
+
+The configured middleware stack does not include an application-level brute-force protection middleware.
+
+The repository does not contain an evidenced authentication protection package (such as `django-axes`, `django-ratelimit`, or an equivalent implementation).
 
 ##### Audit evidence
 
-- `SECURITY_AUDIT.md`
-  - `SEC-003 — Login endpoint lacks evidenced brute-force protection`
+Verified from source code:
+
+- `accounts/views/auth.py`
   - `LoginView`
-  - `UserLoginHistory`
-  - absence of dedicated login throttling or equivalent preventive control
+  - `authentication_classes = []`
+  - `permission_classes = [AllowAny]`
+
+- `accounts/services/authentication.py`
+  - `login_with_token()`
+  - `log_login_attempt()`
+  - authentication failure returns immediately after audit logging
+  - no threshold
+  - no lockout
+  - no cooldown
+  - no progressive delay
+  - no rate-limiting logic
+
+- `dental_clinic/settings.py`
+  - no `DEFAULT_THROTTLE_CLASSES`
+  - no `DEFAULT_THROTTLE_RATES`
+  - no custom `AUTHENTICATION_BACKENDS`
+  - no brute-force protection middleware
+
+Repository audit:
+
+- no evidenced authentication protection package
+- no DRF throttle implementation protecting the login endpoint
+
+Supporting documentation:
+
+- `SECURITY_AUDIT.md`
+  - `SEC-003`
 - `AUTHORIZATION_MATRIX.md`
-  - `/api/auth/login/` is exposed as an anonymous `POST` authentication endpoint
 
 ##### Integrity risk
 
-Failed authentication attempts are recorded but repeated authentication attempts are not actively limited by an evidenced application-level preventive control.
+The login endpoint remains publicly reachable without a verified application-level preventive control against repeated authentication attempts.
 
-A client reaching the login endpoint can repeatedly submit credentials without a verified attempt threshold, cooldown period, temporary lockout, or dedicated rate limit.
+Authentication failures are audited but not actively limited.
 
-`UserLoginHistory` provides audit evidence but does not itself prevent brute-force or credential-stuffing attempts.
+A client can therefore repeatedly submit authentication requests without encountering a verified threshold, cooldown period, temporary lockout, account-aware protection, or IP-aware protection.
+
+`UserLoginHistory` provides forensic evidence only and does not mitigate brute-force or credential-stuffing attacks.
 
 ##### Required remediation
 
-Define and document a dedicated authentication abuse-protection policy before modifying the login flow.
+Define and approve the authentication abuse-protection policy before modifying the login implementation.
 
-The policy must explicitly define rate-limit scope, IP-based controls, account or normalized-email-based controls, failed-attempt threshold, observation window, cooldown or temporary lockout duration, successful-login reset behavior, trusted proxy and client-IP handling, audit requirements, and user-enumeration constraints.
+The policy must explicitly define:
 
-Apply a dedicated login throttle or equivalent preventive control according to the verified policy.
+- rate-limit scope;
+- failed-attempt threshold;
+- observation window;
+- cooldown or temporary lockout duration;
+- successful-login reset behavior;
+- IP-based protection;
+- account-based protection;
+- trusted-proxy and client-IP extraction policy;
+- audit requirements;
+- user-enumeration resistance requirements.
 
-Account-aware protection must complement IP-only protection where required.
+Implement the approved protection through a dedicated login throttling or equivalent preventive mechanism.
 
-Generic authentication failure behavior and failed-attempt audit evidence must be preserved.
+The implementation must preserve:
 
-The remediation must not trust attacker-controlled forwarding headers as authoritative client-IP evidence without explicit trusted-proxy configuration.
+- generic authentication failure responses;
+- login audit logging;
+- resistance to user enumeration.
+
+Client IP extraction must rely only on explicitly trusted proxy configuration.
 
 ##### Dependencies
 
@@ -2000,18 +2058,19 @@ Not implemented.
 
 ##### Validation strategy
 
-- verify normal login attempts remain available,
-- verify repeated failed attempts trigger the defined protection threshold,
-- verify account-aware and IP-aware controls follow the documented policy,
-- verify successful-login reset behavior follows the documented policy,
-- verify cooldown or temporary lockout expiration follows the documented policy,
-- verify failed attempts remain recorded in login history,
-- verify throttled and invalid authentication responses do not introduce a user-enumeration distinction,
-- verify client-IP extraction follows the trusted-proxy policy,
-- add brute-force protection regression tests,
-- run `manage.py check`,
-- run the full Django test suite,
-- run `python3 -m compileall -q .`,
+- verify legitimate authentication remains available;
+- verify repeated failed attempts trigger the documented protection threshold;
+- verify account-based protection follows the approved policy;
+- verify IP-based protection follows the approved policy;
+- verify successful authentication resets protection state where required;
+- verify cooldown or lockout expiration behaves as specified;
+- verify failed attempts continue to be recorded in `UserLoginHistory`;
+- verify throttled and invalid authentication responses remain indistinguishable;
+- verify client-IP extraction follows the trusted-proxy policy;
+- add authentication abuse-protection regression tests;
+- run `python manage.py check`;
+- run the full Django test suite;
+- run `python3 -m compileall -q .`;
 - run `git diff --check`.
 
 ##### Validation evidence
@@ -2021,7 +2080,7 @@ Not validated.
 ##### B14 freeze status
 
 Not ready for backend contract freeze.
-#### AUTH-003 — Authentication tokens are persistent and reused across login events
+#### AUTH-003 — Authentication token lifecycle is undefined and persistent
 
 **Status:** OPEN
 **Priority:** P1
@@ -2030,61 +2089,87 @@ Not ready for backend contract freeze.
 
 ##### Verified finding
 
-`issue_token_for_user()` uses `Token.objects.get_or_create(user=user)` and returns the resulting token key.
+The backend authenticates API requests through DRF `TokenAuthentication`.
 
-An existing authentication token is therefore reused when the same user authenticates successfully again.
+`issue_token_for_user()` issues authentication credentials through:
 
-`login_with_token()` issues the credential through this service, and the login API returns the token key to the client.
+`Token.objects.get_or_create(user=user)`.
 
-The inspected authentication implementation does not evidence token expiration, token age validation, rotation on successful login, rotation after credential changes, per-device or per-session credential isolation, an absolute token lifetime, or an inactivity lifetime.
+An existing token is therefore reused across successive successful login events.
 
-`LogoutView` explicitly deletes the authenticated user's token through `Token.objects.filter(user=request.user).delete()`.
+`LogoutView` revokes credentials only by executing:
 
-Explicit logout therefore provides token revocation, but the broader authentication credential lifecycle remains undefined and persistent tokens can be reused across login events.
+`Token.objects.filter(user=request.user).delete()`.
+
+The inspected backend does not implement or configure:
+
+- token expiration,
+- maximum token lifetime,
+- inactivity timeout,
+- token rotation after successful login,
+- token rotation after password change,
+- administrator-forced token revocation,
+- per-device or per-session authentication tokens,
+- credential versioning,
+- server-side token invalidation policy.
+
+No authentication setting defining token lifetime or expiration was evidenced.
 
 ##### Audit evidence
 
-- `SECURITY_AUDIT.md`
-  - `SEC-004 — Authentication tokens are persistent and reused across login events`
+Backend implementation:
+
+- `accounts/services/authentication.py`
   - `issue_token_for_user()`
   - `Token.objects.get_or_create(user=user)`
-  - explicit logout token deletion
-  - missing credential expiration and rotation controls
-- `AUTHORIZATION_MATRIX.md`
-  - DRF authentication includes `TokenAuthentication`
-  - authenticated logout endpoint is exposed
-- backend implementation
-  - `accounts/services/authentication.py`
-  - `accounts/views/auth.py`
-  - `dental_clinic/settings.py`
+  - `login_with_token()`
+- `accounts/views/auth.py`
+  - `LogoutView`
+  - `Token.objects.filter(user=request.user).delete()`
+- `dental_clinic/settings.py`
+  - `DEFAULT_AUTHENTICATION_CLASSES`
+  - `TokenAuthentication`
+  - no token lifetime configuration
+
+Project-wide search:
+
+- no token expiration configuration,
+- no token rotation implementation,
+- no token revocation service beyond explicit logout.
 
 ##### Integrity risk
 
-A successful login can return a previously issued persistent authentication credential instead of issuing or rotating credentials according to an explicit lifecycle policy.
+Authentication credentials remain valid until explicit logout or manual database deletion.
 
-If a token is compromised, subsequent successful login events do not evidence automatic invalidation or rotation of that token.
+A previously disclosed authentication token therefore remains usable indefinitely if the user never logs out.
 
-The effective credential lifetime is not bounded by a verified expiration policy.
-
-The current one-token-per-user flow also does not evidence independent device or session credential lifecycle management.
+The backend does not currently enforce a documented credential lifecycle capable of limiting token persistence or automatically revoking stale authentication credentials.
 
 ##### Required remediation
 
-Define and document the API authentication credential lifecycle before replacing the current implementation.
+Define and document the complete authentication credential lifecycle before changing the implementation.
 
-The policy must explicitly define the authentication mechanism, credential lifetime, absolute expiration, inactivity expiration where required, rotation behavior, logout revocation behavior, password-change revocation behavior, administrator-forced revocation, compromised-token response, concurrent device or session policy, and React client credential storage expectations.
+The policy must explicitly define:
 
-Select an authentication mechanism that supports the documented lifecycle.
+- authentication mechanism,
+- token lifetime,
+- absolute expiration,
+- inactivity expiration where required,
+- rotation on successful login where applicable,
+- rotation after password change,
+- logout revocation behavior,
+- administrator-forced revocation,
+- compromised-token response,
+- concurrent session or multi-device policy,
+- React client storage requirements.
 
-Persistent DRF tokens must not remain indefinitely reusable authentication state contrary to the defined credential lifecycle.
+Server-side authentication credential management must then enforce the documented lifecycle consistently.
 
-Server-side credential expiration, rotation, and security-sensitive revocation behavior must follow the verified policy.
-
-The remediation must remain aligned with the documented architectural intention to migrate progressively toward JWT-based authentication and must explicitly define the migration or invalidation boundary for existing DRF tokens.
+The remediation must not introduce incompatible token behavior without an approved authentication architecture.
 
 ##### Dependencies
 
-- AUTH-004
+- AUTH-002
 
 ##### Implementation evidence
 
@@ -2092,18 +2177,12 @@ Not implemented.
 
 ##### Validation strategy
 
-- verify successful authentication issues credentials according to the documented lifecycle,
-- verify expired credentials are rejected,
-- verify credential lifetime is enforced server-side,
-- verify credential rotation follows the documented policy,
-- verify old credentials are rejected after required rotation,
-- verify logout revokes the relevant credential or session,
-- verify password changes revoke credentials according to policy,
-- verify administrator-forced revocation invalidates targeted credentials,
-- verify concurrent device or session behavior matches the documented policy,
-- verify a new login does not silently preserve a compromised credential beyond the permitted lifecycle,
-- verify inactive and soft-deleted users cannot authenticate with credentials contrary to policy,
-- verify the React client authentication flow matches the backend credential lifecycle,
+- verify successful login follows the documented credential lifecycle,
+- verify logout revokes authentication credentials,
+- verify expired credentials are rejected according to the documented policy,
+- verify password-change behavior follows the documented revocation policy,
+- verify administrator revocation behaves as documented,
+- verify concurrent session behavior matches the approved policy,
 - add authentication lifecycle regression tests,
 - run `manage.py check`,
 - run the full Django test suite,
