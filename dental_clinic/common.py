@@ -1,6 +1,6 @@
 from django.db import models
 from django.utils import timezone
-
+from django.core.exceptions import ValidationError
 
 class TimestampedModel(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
@@ -24,6 +24,12 @@ class SoftDeleteQuerySet(models.QuerySet):
             deleted_at=None
         )
 
+class ProtectedDeleteQuerySet(models.QuerySet):
+
+    def delete(self):
+        raise ValidationError(
+            "Deletion is not allowed for this model."
+        )
 
 class SoftDeleteManager(models.Manager):
 
@@ -33,6 +39,14 @@ class SoftDeleteManager(models.Manager):
             using=self._db
         ).filter(
             is_deleted=False
+        )
+
+class ProtectedDeleteManager(models.Manager):
+
+    def get_queryset(self):
+        return ProtectedDeleteQuerySet(
+            self.model,
+            using=self._db,
         )
 
 

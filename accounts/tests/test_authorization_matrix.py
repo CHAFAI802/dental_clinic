@@ -184,3 +184,28 @@ class AuthorizationMatrixCharacterizationTests(APITestCase):
         retrieve = self.client.get(f"/api/invoices/{inv_id}/")
         self.assertEqual(retrieve.status_code, 200)
         self.assertEqual(retrieve.data["id"], inv_id)
+
+    def test_accountant_cannot_delete_invoice(self):
+        """Invoice deletion is explicitly forbidden."""
+
+        invoice = Invoice.objects.create(
+            patient=self.patient,
+            created_by=self.accountant,
+            issued_at="2035-01-15",
+            due_date="2035-02-15",
+            status="draft",
+            reference_number="INV-AUTHZ-DELETE",
+        )
+
+        self.client.credentials(
+            HTTP_AUTHORIZATION=f"Token {self.accountant_token.key}"
+        )
+
+        response = self.client.delete(
+            f"/api/invoices/{invoice.pk}/"
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertTrue(
+            Invoice.objects.filter(pk=invoice.pk).exists()
+        )

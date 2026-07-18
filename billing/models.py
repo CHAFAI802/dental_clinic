@@ -1,5 +1,6 @@
 from django.db import models
-from dental_clinic.common import TimestampedModel
+from dental_clinic.common import ProtectedDeleteManager, TimestampedModel
+from django.core.exceptions import ValidationError
 
 
 class Estimate(TimestampedModel):
@@ -15,6 +16,7 @@ class Estimate(TimestampedModel):
 
 
 class Invoice(TimestampedModel):
+    objects = ProtectedDeleteManager()
     patient = models.ForeignKey('patients.Patient', related_name='invoices', on_delete=models.CASCADE)
     created_by = models.ForeignKey('accounts.User', null=True, blank=True, on_delete=models.SET_NULL)
     issued_at = models.DateField()
@@ -26,9 +28,30 @@ class Invoice(TimestampedModel):
     balance_due = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     reference_number = models.CharField(max_length=64, unique=True)
     notes = models.TextField(blank=True)
-    related_estimate = models.ForeignKey('billing.Estimate', null=True, blank=True, on_delete=models.SET_NULL)
-    related_treatment_plan = models.ForeignKey('treatment_plans.TreatmentPlan', null=True, blank=True, on_delete=models.SET_NULL)
+    related_estimate = models.ForeignKey(
+        'billing.Estimate',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+    )
+    related_treatment_plan = models.ForeignKey(
+        'treatment_plans.TreatmentPlan',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+    )
 
+    def delete(self, using=None, keep_parents=False):
+        raise ValidationError(
+            {
+                "__all__": [
+                    (
+                        "Invoice deletion is not allowed. "
+                        "Use the archival workflow instead."
+                    )
+                ]
+            }
+        )
 
 class InvoiceLine(TimestampedModel):
     invoice = models.ForeignKey('billing.Invoice', related_name='lines', on_delete=models.CASCADE)

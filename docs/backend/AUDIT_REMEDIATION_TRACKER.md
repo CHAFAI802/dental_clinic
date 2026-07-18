@@ -344,16 +344,14 @@ Ready.
 
 #### DEL-003 — Invoice deletion can remove financial history
 
-**Status:** OPEN
+**Status:** CLOSED
 **Priority:** P0
 **Domain:** Deletion and retention
 **Remediation phase:** R1
 
 ##### Verified finding
 
-Hard deletion of an `Invoice` cascades to related `InvoiceLine`, `Payment`, and `CreditNote` records.
-
-The audited deletion graph explicitly identifies invoice deletion as a financial ledger and history risk.
+Hard deletion of an `Invoice` could previously cascade to related financial records (`InvoiceLine`, `Payment`, `CreditNote`), creating an unacceptable financial-history integrity risk.
 
 ##### Audit evidence
 
@@ -363,46 +361,65 @@ The audited deletion graph explicitly identifies invoice deletion as a financial
 
 ##### Integrity risk
 
-Deleting an invoice can remove payment and credit-note history required to preserve financial record integrity.
+Deleting an invoice could remove financial history that must be preserved for accounting integrity and auditability.
 
-##### Required remediation
+##### Implemented remediation
 
-Prevent the normal invoice deletion path from destructively removing invoice financial history.
+Invoice deletion is now explicitly prohibited.
 
-The remediation must define safe invoice deletion behavior without introducing unsupported financial retention policy.
+The remediation introduces a protected deletion policy:
+
+- `Invoice.delete()` raises `ValidationError`;
+- `ProtectedDeleteQuerySet.delete()` blocks queryset bulk deletion;
+- `Invoice.objects` now uses `ProtectedDeleteManager`;
+- `InvoiceViewSet.destroy()` converts the model `ValidationError` into an explicit HTTP 400 response instead of allowing destructive deletion.
+
+This prevents:
+
+- instance deletion (`invoice.delete()`),
+- queryset deletion (`Invoice.objects.filter(...).delete()`),
+- REST API deletion (`DELETE /api/invoices/{id}/`).
+
+No database schema changes were required.
 
 ##### Dependencies
 
-- DEL-001
-
-##### Implementation evidence
-
-Deferred.
-
-Invoice currently does not inherit SoftDeleteModel.
-
-Financial retention requires an explicit accounting retention policy before introducing soft-delete semantics.
-
-This finding remains assigned to R1 but is intentionally postponed pending business-rule definition.
+- DEL-001 ✓ satisfied
 
 ##### Validation strategy
 
-- verify normal invoice deletion does not physically remove protected financial history,
-- verify related payments remain persisted,
-- verify related credit notes remain persisted,
-- verify invoice deletion behavior is explicit and regression-tested,
+- verify `invoice.delete()` is rejected,
+- verify `Invoice.objects.filter(...).delete()` is rejected,
+- verify `DELETE /api/invoices/{id}/` is rejected,
+- verify invoice remains persisted after each attempt,
 - run `manage.py check`,
 - run the full Django test suite,
-- run `python3 -m compileall -q .`,
+- run `python -m compileall -q .`,
 - run `git diff --check`.
 
 ##### Validation evidence
 
-Not validated.
+Validated.
+
+Evidence collected:
+
+- ORM instance deletion raises `ValidationError`;
+- queryset deletion raises `ValidationError`;
+- REST API deletion returns HTTP 400 and preserves the invoice;
+- `manage.py check` — passed;
+- Django test suite — **72/72 tests passed**;
+- `python -m compileall -q .` — passed;
+- `git diff --check` — passed.
+
+##### Residual considerations
+
+This remediation intentionally prevents invoice deletion.
+
+Future archival, retention, or accounting lifecycle workflows (archive, cancellation, reversal, legal retention periods) remain separate business-policy decisions and are outside the scope of DEL-003.
 
 ##### B14 freeze status
 
-Not ready for backend contract freeze.
+Ready for backend contract freeze.
 
 #### SER-001 — Broad writable contracts through fields='__all__'
 
