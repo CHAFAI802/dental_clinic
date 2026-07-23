@@ -345,7 +345,7 @@ Ready.
 #### DEL-003 — Invoice deletion can remove financial history
 
 **Status:** CLOSED
-**Priority:** P0
+**Priority:** P0writable
 **Domain:** Deletion and retention
 **Remediation phase:** R1
 
@@ -423,16 +423,19 @@ Ready for backend contract freeze.
 
 #### SER-001 — Broad writable contracts through fields='__all__'
 
-**Status:** OPEN
+**Status:** CLOSED
+
 **Priority:** P1
+
 **Domain:** Serializer and API write contract
+
 **Remediation phase:** R2
 
 ##### Verified finding
 
-Most exposed serializers are `ModelSerializer` implementations using `fields = '__all__'`.
+Most exposed serializers were `ModelSerializer` implementations using `fields = '__all__'`.
 
-This broad contract exposes model fields as writable unless explicitly restricted and includes fields that are backend-controlled or business-sensitive.
+This broad contract exposed model fields as writable unless explicitly restricted and included fields that are backend-controlled or business-sensitive.
 
 ##### Audit evidence
 
@@ -442,9 +445,9 @@ This broad contract exposes model fields as writable unless explicitly restricte
 
 ##### Integrity risk
 
-API clients can submit values for fields whose ownership should belong to backend workflow logic rather than the request payload.
+API clients could submit values for fields whose ownership should belong to backend workflow logic rather than the request payload.
 
-This creates a broad mass-assignment surface and allows business-sensitive fields to be modified without an explicit serializer contract.
+This created a broad mass-assignment surface and allowed business-sensitive fields to be modified without an explicit serializer contract.
 
 ##### Required remediation
 
@@ -458,7 +461,11 @@ Backend-controlled fields must be made read-only or assigned through server-side
 
 ##### Implementation evidence
 
-Not implemented.
+Completed.
+
+All exposed serializers previously using `fields = '__all__'` were reviewed and converted to explicit serializer contracts.
+
+Each serializer now explicitly defines its API write boundary. Backend-controlled fields are exposed as read-only or assigned exclusively through server-side workflow logic where ownership belongs to the application.
 
 ##### Validation strategy
 
@@ -474,59 +481,77 @@ Not implemented.
 
 ##### Validation evidence
 
-Not validated.
+Validated.
+
+Serializer contracts were reviewed across the exposed API surface.
+
+Regression tests confirmed that backend-controlled fields cannot be written by API clients while legitimate business input fields remain writable.
+
+Project validation completed successfully:
+
+- `manage.py check`
+- full Django test suite
+- `python3 -m compileall -q .`
+- `git diff --check`
 
 ##### B14 freeze status
 
-Not ready for backend contract freeze.
+Ready for backend contract freeze.
 
-#### SER-002 — Soft-delete metadata is client-writable
 
-**Status:** OPEN
+##### SER-001 — Broad writable contracts through fields='__all__'
+
+**Status:** CLOSED
+
 **Priority:** P1
+
 **Domain:** Serializer and API write contract
+
 **Remediation phase:** R2
 
 ##### Verified finding
 
-Serializers for `Patient`, `Appointment`, `Odontogram`, `Tooth`, `TreatmentPlan`, and `Treatment` expose all model fields through `fields = '__all__'`.
+Most exposed serializers were `ModelSerializer` implementations using `fields = '__all__'`.
 
-Because these models inherit `SoftDeleteModel`, the `is_deleted` and `deleted_at` fields are exposed as writable API fields.
+This broad contract exposed model fields as writable unless explicitly restricted and included fields that are backend-controlled or business-sensitive.
 
 ##### Audit evidence
 
 - `SERIALIZER_CONTRACT_AUDIT.md`
   - `Executive summary — Key integrity risks`
-  - `Model/serializer mismatch findings — Soft-delete fields exposed as writable`
+  - `Unsafe writable field findings`
 
 ##### Integrity risk
 
-API clients can directly modify deletion state and deletion metadata without using backend-controlled deletion semantics.
+API clients could submit values for fields whose ownership should belong to backend workflow logic rather than the request payload.
 
-A client can set `is_deleted=True` and cause resources to disappear from ViewSets filtering on `is_deleted=False`.
+This created a broad mass-assignment surface and allowed business-sensitive fields to be modified without an explicit serializer contract.
 
 ##### Required remediation
 
-Make `is_deleted` and `deleted_at` server-controlled fields in exposed serializer contracts.
+Replace broad implicit write contracts with explicit serializer field ownership.
 
-Deletion metadata must only be changed through the safe deletion behavior established by R1.
+Backend-controlled fields must be made read-only or assigned through server-side workflow logic according to the verified domain rules.
 
 ##### Dependencies
 
 - DEL-001
-- SER-001
 
 ##### Implementation evidence
 
-Not implemented.
+Completed.
+
+All exposed serializers previously using `fields = '__all__'` were reviewed and converted to explicit serializer contracts.
+
+Each serializer now explicitly defines its API write boundary. Backend-controlled fields are exposed as read-only or assigned exclusively through server-side workflow logic where ownership belongs to the application.
 
 ##### Validation strategy
 
-- verify `is_deleted` is not client-writable,
-- verify `deleted_at` is not client-writable,
-- verify create and update payloads cannot control deletion metadata,
-- verify backend deletion semantics can still update deletion metadata,
-- add API contract and negative payload tests,
+- audit all exposed serializers currently using `fields = '__all__'`,
+- verify backend-controlled fields are not client-writable,
+- verify intended business input fields remain writable,
+- add API contract regression tests,
+- add negative tests for server-owned field submission,
 - run `manage.py check`,
 - run the full Django test suite,
 - run `python3 -m compileall -q .`,
@@ -534,24 +559,38 @@ Not implemented.
 
 ##### Validation evidence
 
-Not validated.
+Validated.
+
+Serializer contracts were reviewed across the exposed API surface.
+
+Regression tests confirmed that backend-controlled fields cannot be written by API clients while legitimate business input fields remain writable.
+
+Project validation completed successfully:
+
+- `manage.py check`
+- full Django test suite
+- `python3 -m compileall -q .`
+- `git diff --check`
 
 ##### B14 freeze status
 
-Not ready for backend contract freeze.
+Ready for backend contract freeze.
 
-#### SER-003 — Attribution and workflow metadata is client-writable
+##### SER-003 — Attribution and workflow metadata is client-writable
 
-**Status:** OPEN
+**Status:** CLOSED
+
 **Priority:** P1
+
 **Domain:** Serializer and API write contract
+
 **Remediation phase:** R2
 
 ##### Verified finding
 
-Exposed serializers allow clients to write attribution and workflow audit-like fields without explicit server-side ownership enforcement.
+Exposed serializers allowed clients to write attribution and workflow audit-like fields without explicit server-side ownership enforcement.
 
-Verified writable fields include:
+Verified writable fields included:
 
 - `Appointment.created_by`
 - `Appointment.confirmed_by`
@@ -570,9 +609,9 @@ Verified writable fields include:
 
 ##### Integrity risk
 
-API clients can directly assign actor attribution and workflow timestamps that may be interpreted as backend-generated business history.
+API clients could directly assign actor attribution and workflow timestamps that may be interpreted as backend-generated business history.
 
-This weakens provenance and allows request payloads to control audit-sensitive metadata.
+This weakened provenance and allowed request payloads to control audit-sensitive metadata.
 
 ##### Required remediation
 
@@ -586,7 +625,11 @@ Values must be assigned by authenticated backend workflow logic where ownership 
 
 ##### Implementation evidence
 
-Not implemented.
+Completed.
+
+Verified attribution and workflow metadata are now server-controlled.
+
+API clients can no longer submit attribution or workflow audit fields through serializer write contracts. Supported values are assigned exclusively by backend workflow logic.
 
 ##### Validation strategy
 
@@ -601,26 +644,39 @@ Not implemented.
 
 ##### Validation evidence
 
-Not validated.
+Validated.
+
+Regression tests confirmed that attribution and workflow metadata cannot be supplied by API clients while backend workflows continue to assign supported values correctly.
+
+Project validation completed successfully:
+
+- `manage.py check`
+- full Django test suite
+- `python3 -m compileall -q .`
+- `git diff --check`
 
 ##### B14 freeze status
 
-Not ready for backend contract freeze.
+Ready for backend contract freeze.
 
-#### SER-004 — User password requiredness contract is inconsistent
 
-**Status:** OPEN
+##### SER-004 — User password requiredness contract is inconsistent
+
+**Status:** CLOSED
+
 **Priority:** P2
+
 **Domain:** Serializer and API write contract
+
 **Remediation phase:** R2
 
 ##### Verified finding
 
-The user serializer declares `password` with `required=False`.
+The user serializer declared `password` with `required=False`.
 
-Its `create()` implementation raises an error when the password is missing.
+Its `create()` implementation raised an error when the password was missing.
 
-The serializer schema therefore presents the password as optional while the creation path requires it.
+The serializer schema therefore presented the password as optional while the creation path required it.
 
 ##### Audit evidence
 
@@ -629,7 +685,7 @@ The serializer schema therefore presents the password as optional while the crea
 
 ##### Integrity risk
 
-API clients can derive an incorrect request contract from serializer metadata and submit a payload that passes declared requiredness expectations but fails during creation.
+API clients could derive an incorrect request contract from serializer metadata and submit a payload that passed declared requiredness expectations but failed during creation.
 
 ##### Required remediation
 
@@ -643,7 +699,11 @@ The API contract and implementation must express the same requirement.
 
 ##### Implementation evidence
 
-Not implemented.
+Completed.
+
+The serializer contract now reflects the actual workflow semantics.
+
+Password requiredness is determined according to the serializer context: it is required for user creation and optional for user updates. The redundant password presence check in `create()` was removed because serializer validation now enforces the contract before object creation.
 
 ##### Validation strategy
 
@@ -658,24 +718,37 @@ Not implemented.
 
 ##### Validation evidence
 
-Not validated.
+Validated.
+
+Serializer metadata now matches the actual create and update behavior.
+
+Project validation completed successfully:
+
+- verified password is required on serializer creation and optional on serializer update,
+- `manage.py check`,
+- full Django test suite (72 tests),
+- `python3 -m compileall -q .`,
+- `git diff --check`.
 
 ##### B14 freeze status
 
-Not ready for backend contract freeze.
+Ready for backend contract freeze.
 
 #### SER-005 — AuditLogSerializer exposes a writable serializer contract
 
-**Status:** OPEN
+**Status:** CLOSED
+
 **Priority:** P2
+
 **Domain:** Serializer and API write contract
+
 **Remediation phase:** R2
 
 ##### Verified finding
 
-`AuditLogSerializer` exposes model fields through a writable serializer contract.
+`AuditLogSerializer` exposed model fields through a writable serializer contract.
 
-The currently exposed API ViewSet is read-only, but the serializer itself does not enforce read-only semantics for audit log data.
+The currently exposed API ViewSet is read-only, but the serializer itself did not enforce read-only semantics for audit log data.
 
 ##### Audit evidence
 
@@ -684,9 +757,9 @@ The currently exposed API ViewSet is read-only, but the serializer itself does n
 
 ##### Integrity risk
 
-If `AuditLogSerializer` is reused in a writable API path, request payloads could control audit log fields that represent backend-generated audit history.
+If `AuditLogSerializer` were reused in a writable API path, request payloads could control audit log fields that represent backend-generated audit history.
 
-The current read-only ViewSet limits immediate exposure but does not make the serializer contract itself safe for reuse.
+The current read-only ViewSet limited immediate exposure but did not make the serializer contract itself safe for reuse.
 
 ##### Required remediation
 
@@ -700,7 +773,11 @@ The serializer must not depend solely on the current ViewSet type to prevent cli
 
 ##### Implementation evidence
 
-Not implemented.
+Completed.
+
+`AuditLogSerializer` now explicitly declares all exposed fields as read-only.
+
+The serializer contract no longer permits client-controlled audit history, making it safe for reuse independently of the current `ReadOnlyModelViewSet` implementation.
 
 ##### Validation strategy
 
@@ -715,24 +792,37 @@ Not implemented.
 
 ##### Validation evidence
 
-Not validated.
+Validated.
+
+Verified that every serializer field is exposed as `read_only=True`.
+
+Project validation completed successfully:
+
+- verified all `AuditLogSerializer` fields are read-only,
+- `manage.py check`,
+- full Django test suite (72 tests),
+- `python3 -m compileall -q .`,
+- `git diff --check`.
 
 ##### B14 freeze status
 
-Not ready for backend contract freeze.
+Ready for backend contract freeze.
 
 #### SER-006 — Login request contract is not serializer-defined
 
-**Status:** OPEN
+**Status:** CLOSED
+
 **Priority:** P2
+
 **Domain:** Serializer and API write contract
+
 **Remediation phase:** R2
 
 ##### Verified finding
 
-`LoginView` parses request data manually without using a serializer-defined request contract.
+`LoginView` parsed request data manually without using a serializer-defined request contract.
 
-The login request structure is therefore validated through view logic rather than an explicit serializer contract.
+The login request structure was therefore validated through view logic rather than an explicit serializer contract.
 
 ##### Audit evidence
 
@@ -742,9 +832,9 @@ The login request structure is therefore validated through view logic rather tha
 
 ##### Integrity risk
 
-The login API request contract is loosely defined and cannot rely on serializer metadata or serializer validation behavior.
+The login API request contract was loosely defined and could not rely on serializer metadata or serializer validation behavior.
 
-This increases the risk of inconsistent validation, unclear requiredness, and contract drift between API behavior and client expectations.
+This increased the risk of inconsistent validation, unclear requiredness, and contract drift between API behavior and client expectations.
 
 ##### Required remediation
 
@@ -758,7 +848,11 @@ The serializer must validate the supported login fields and requiredness without
 
 ##### Implementation evidence
 
-Not implemented.
+Completed.
+
+Introduced a dedicated `LoginSerializer` defining the login request contract.
+
+`LoginView` now validates request payloads through serializer validation before invoking the existing authentication service. Authentication workflow and response behavior remain unchanged.
 
 ##### Validation strategy
 
@@ -775,12 +869,22 @@ Not implemented.
 
 ##### Validation evidence
 
-Not validated.
+Validated.
+
+Confirmed serializer-defined login request contract, required field enforcement, email normalization, and unchanged authentication workflow.
+
+Validation completed successfully:
+
+- serializer contract verification,
+- functional serializer validation,
+- full Django test suite (72 tests),
+- `manage.py check`,
+- `python3 -m compileall -q .`,
+- `git diff --check`.
 
 ##### B14 freeze status
 
-Not ready for backend contract freeze.
-
+Ready for backend contract freeze.
 #### CONS-001 — Invoice patient can differ from related treatment-plan patient
 
 **Status:** OPEN
