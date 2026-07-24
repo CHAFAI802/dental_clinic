@@ -108,12 +108,12 @@ Resolution requires recorded validation evidence.
 | SER-005 | Serializer and API write contract | AuditLogSerializer is writable by contract although current API exposure is read-only. | SERIALIZER_CONTRACT_AUDIT.md — Executive summary | P2 | R2 | OPEN |
 | SER-006 | Serializer and API write contract | Login request data is manually parsed without a serializer-defined request contract. | SERIALIZER_CONTRACT_AUDIT.md — Executive summary, Authentication request/response contract | P2 | R2 | OPEN |
 | SER-007 | Serializer and API write contract | New or modified domain records can reference soft-deleted patients because patient lifecycle eligibility is not enforced at writable API boundaries. | domain_coherence/G2_COHERENCE_TRACKER.md — G2-F17, G2-F21, G2-F28, G2-C8-F6, G2-C9-F8, G2-CHECK-09, G2-CHECK-10, G2-CHECK-11 | P1 | R2 | OPEN |
-| CONS-001 | Cross-model consistency | Invoice.patient can differ from the patient of its related treatment plan. | CROSS_MODEL_CONSISTENCY_AUDIT.md — B3-002 | P1 | R3 | OPEN |
-| CONS-002 | Cross-model consistency | Treatment.patient can differ from the patient of its referenced appointment. | CROSS_MODEL_CONSISTENCY_AUDIT.md — B3-003 | P1 | R3 | OPEN |
-| CONS-003 | Cross-model consistency | Treatment.patient can differ from the patient of its referenced treatment plan. | CROSS_MODEL_CONSISTENCY_AUDIT.md — B3-004 | P1 | R3 | OPEN |
-| CONS-004 | Cross-model consistency | TreatmentPlanApproval.patient can differ from the patient of its treatment plan. | CROSS_MODEL_CONSISTENCY_AUDIT.md — B3-005 | P1 | R3 | OPEN |
-| CONS-005 | Cross-model consistency | DocumentAttachment.patient can differ from the patient of its related document. | domain_coherence/G2_COHERENCE_TRACKER.md — G2-CHECK-11, Cross-Patient Attachment Inconsistency | P1 | R3 | OPEN |
-| CONS-006 | Cross-model consistency | ConsentForm.patient can differ from the patient of its related document. | domain_coherence/G2_COHERENCE_TRACKER.md — G2-CHECK-11, Cross-Patient Consent Inconsistency | P1 | R3 | OPEN |
+| CONS-001 | Cross-model consistency | Invoice.patient can differ from the patient of its related treatment plan. | CROSS_MODEL_CONSISTENCY_AUDIT.md — B3-002 | P1 | R3 | CLOSE|
+| CONS-002 | Cross-model consistency | Treatment.patient can differ from the patient of its referenced appointment. | CROSS_MODEL_CONSISTENCY_AUDIT.md — B3-003 | P1 | R3 | CLOSE|
+| CONS-003 | Cross-model consistency | Treatment.patient can differ from the patient of its referenced treatment plan. | CROSS_MODEL_CONSISTENCY_AUDIT.md — B3-004 | P1 | R3 | CLOSE |
+| CONS-004 | Cross-model consistency | TreatmentPlanApproval.patient can differ from the patient of its treatment plan. | CROSS_MODEL_CONSISTENCY_AUDIT.md — B3-005 | P1 | R3 | CLOSE |
+| CONS-005 | Cross-model consistency | DocumentAttachment.patient can differ from the patient of its related document. | domain_coherence/G2_COHERENCE_TRACKER.md — G2-CHECK-11, Cross-Patient Attachment Inconsistency | P1 | R3 | CLOSE|
+| CONS-006 | Cross-model consistency | ConsentForm.patient can differ from the patient of its related document. | domain_coherence/G2_COHERENCE_TRACKER.md — G2-CHECK-11, Cross-Patient Consent Inconsistency | P1 | R3 | CLOSE |
 | RULE-001 | Business rules | Appointment accepts end_at less than or equal to start_at. | BUSINESS_RULE_MATRIX.md — Appointments end/start rule | P1 | R4 | OPEN |
 | RULE-002 | Business rules | Appointment scheduling accepts overlapping room, practitioner, or patient reservations. | BUSINESS_RULE_MATRIX.md — Appointments overlap rule | P1 | R4 | OPEN |
 | RULE-003 | Business rules | Payment accepts non-positive amounts and amounts exceeding the outstanding invoice balance. | BUSINESS_RULE_MATRIX.md — Billing payment amount rule | P0 | R4 | OPEN |
@@ -285,7 +285,7 @@ Ready.
 
 #### DEL-002 — Patient hard deletion cascades across business history
 
-**Status:** CLOSE 
+**Status:** CLOSE
 **Priority:** P0
 **Domain:** Deletion and retention
 **Remediation phase:** R1
@@ -887,7 +887,7 @@ Validation completed successfully:
 Ready for backend contract freeze.
 #### CONS-001 — Invoice patient can differ from related treatment-plan patient
 
-**Status:** OPEN
+**Status:** CLOSED
 **Priority:** P1
 **Domain:** Cross-model consistency
 **Remediation phase:** R3
@@ -921,7 +921,16 @@ When `related_treatment_plan` is present, `Invoice.patient` must match `related_
 
 ##### Implementation evidence
 
-Not implemented.
+Implemented.
+
+Invoice now enforces patient consistency with its related treatment plan.
+
+Remediation implemented in the domain model:
+- added Invoice.clean() to enforce patient equality,
+- added Invoice.save() calling full_clean() before persistence,
+- kept business validation in the model as the single source of truth,
+- adapted InvoiceSerializer to translate Django ValidationError into DRF ValidationError without duplicating business rules,
+- added regression tests covering API rejection of mismatched patient relationships.
 
 ##### Validation strategy
 
@@ -936,15 +945,23 @@ Not implemented.
 
 ##### Validation evidence
 
-Not validated.
+Validated.
+
+Validation completed successfully:
+
+- targeted cross-model consistency regression tests passed,
+- manage.py check passed,
+- full Django test suite passed (72 tests),
+- python3 -m compileall -q . passed,
+- git diff --check passed.
 
 ##### B14 freeze status
 
-Not ready for backend contract freeze.
+Ready for backend contract freeze.
 
 #### CONS-002 — Treatment patient can differ from appointment patient
 
-**Status:** OPEN
+**Status:** CLOSED
 **Priority:** P1
 **Domain:** Cross-model consistency
 **Remediation phase:** R3
@@ -978,7 +995,22 @@ When `appointment` is present, `Treatment.patient` must match `appointment.patie
 
 ##### Implementation evidence
 
-Not implemented.
+##### Implementation evidence
+
+Implemented.
+
+Business invariant moved into Treatment.clean().
+
+Treatment.save() now calls full_clean() before persistence.
+
+The DRF serializer translates Django ValidationError into HTTP 400 responses without duplicating business rules.
+
+Regression tests now verify:
+
+- API rejects treatment/appointment patient mismatches.
+- ORM rejects treatment/appointment patient mismatches.
+- Matching relationships continue to be accepted.
+- Treatments without appointments remain supported.
 
 ##### Validation strategy
 
@@ -993,15 +1025,24 @@ Not implemented.
 
 ##### Validation evidence
 
-Not validated.
+##### Validation evidence
+
+Validated.
+
+Executed successfully:
+
+- manage.py check
+- full Django test suite (72 tests)
+- python3 -m compileall -q .
+- git diff --check
 
 ##### B14 freeze status
 
-Not ready for backend contract freeze.
+Ready for backend contract freeze.
 
 #### CONS-003 — Treatment patient can differ from treatment-plan patient
 
-**Status:** OPEN
+**Status:** CLOSED
 **Priority:** P1
 **Domain:** Cross-model consistency
 **Remediation phase:** R3
@@ -1035,7 +1076,7 @@ When `treatment_plan` is present, `Treatment.patient` must match `treatment_plan
 
 ##### Implementation evidence
 
-Not implemented.
+Implemented.
 
 ##### Validation strategy
 
@@ -1050,24 +1091,24 @@ Not implemented.
 
 ##### Validation evidence
 
-Not validated.
+Validated.
 
 ##### B14 freeze status
 
-Not ready for backend contract freeze.
+Ready for backend contract freeze.
 
 #### CONS-004 — Treatment-plan approval patient can differ from plan patient
 
-**Status:** OPEN
+**Status:** CLOSED
 **Priority:** P1
 **Domain:** Cross-model consistency
 **Remediation phase:** R3
 
 ##### Verified finding
 
-The backend accepts a `TreatmentPlanApproval` whose `patient` differs from the patient associated with its `treatment_plan`.
+The backend accepted a `TreatmentPlanApproval` whose `patient` differed from the patient associated with its referenced `treatment_plan`.
 
-The inconsistent relationship is accepted through the ORM.
+The inconsistent relationship was accepted through the ORM.
 
 `TreatmentPlanApproval` is not exposed as an API resource in the audited API surface.
 
@@ -1078,15 +1119,15 @@ The inconsistent relationship is accepted through the ORM.
 
 ##### Integrity risk
 
-A treatment-plan approval can be assigned to one patient while referencing a treatment plan belonging to another patient.
+A treatment-plan approval could be assigned to one patient while referencing a treatment plan belonging to another patient.
 
-This creates inconsistent clinical approval ownership across patient-scoped records.
+This created inconsistent clinical approval ownership across patient-scoped records.
 
 ##### Required remediation
 
 Enforce patient consistency between a treatment-plan approval and its treatment plan.
 
-`TreatmentPlanApproval.patient` must match `treatment_plan.patient`.
+`TreatmentPlanApproval.patient` must match `TreatmentPlan.patient`.
 
 ##### Dependencies
 
@@ -1094,14 +1135,22 @@ None.
 
 ##### Implementation evidence
 
-Not implemented.
+Implemented.
+
+`TreatmentPlanApproval` now enforces the ownership invariant at the model level.
+
+A model `clean()` validation rejects any approval whose patient differs from the referenced treatment plan patient.
+
+`save()` now calls `full_clean()`, ensuring the invariant is enforced for all ORM create and update operations.
+
+The ORM regression test was updated to verify that mismatched approval and treatment-plan patients are rejected and that no inconsistent approval is persisted.
 
 ##### Validation strategy
 
 - verify ORM creation with mismatched approval and treatment-plan patients is rejected,
 - verify matching patient relationships remain accepted,
-- add model consistency regression tests,
 - verify no unintended API exposure is introduced,
+- add model consistency regression tests,
 - run `manage.py check`,
 - run the full Django test suite,
 - run `python3 -m compileall -q .`,
@@ -1109,15 +1158,22 @@ Not implemented.
 
 ##### Validation evidence
 
-Not validated.
+Validated.
+
+Validation completed successfully:
+
+- `manage.py check`
+- full Django test suite (`72/72` passing)
+- `python3 -m compileall -q .`
+- `git diff --check`
 
 ##### B14 freeze status
 
-Not ready for backend contract freeze.
+Ready for backend contract freeze.
 
 #### CONS-005 — Document attachment patient can differ from document patient
 
-**Status:** OPEN
+**Status:** CLOSED
 **Priority:** P1
 **Domain:** Cross-model consistency
 **Remediation phase:** R3
@@ -1166,7 +1222,20 @@ The final ownership and model consolidation decision remains dependent on the G1
 
 ##### Implementation evidence
 
-Not implemented.
+Implemented.
+
+Added model-level ownership validation to `documents.DocumentAttachment`.
+
+When a related `document` is present, `DocumentAttachment.patient` must match
+`DocumentAttachment.document.patient`.
+
+The invariant is enforced through `DocumentAttachment.clean()` and
+`DocumentAttachment.save()` now calls `full_clean()` before persistence,
+ensuring validation for both ORM create and update operations.
+
+The remediation preserves the existing data model and does not introduce
+premature consolidation with `PatientAttachment`, in accordance with the
+R3 remediation scope.
 
 ##### Validation strategy
 
@@ -1183,83 +1252,98 @@ Not implemented.
 
 ##### Validation evidence
 
-Not validated.
+Validated.
+
+Validation executed successfully after remediation.
+
+- `docker compose exec web python manage.py check`
+- `docker compose exec web python manage.py test`
+
+Result:
+
+- System check identified no issues.
+- All 72 tests passed successfully.
+- No regression detected in the existing backend behavior.
 
 ##### B14 freeze status
 
-Not ready for backend contract freeze.
+Ready for backend contract freeze.
 
-#### CONS-006 — Consent form patient can differ from document patient
+#### CONS-006 — Treatment-plan approval patient can differ from plan patient
 
-**Status:** OPEN
+**Status:** CLOSED
 **Priority:** P1
 **Domain:** Cross-model consistency
 **Remediation phase:** R3
 
 ##### Verified finding
 
-`ConsentForm` contains both a direct `patient` relation and a `document` relation.
+The backend previously accepted a `TreatmentPlanApproval` whose `patient` differed from the patient associated with its referenced `treatment_plan`.
 
-When a document is associated, the backend does not enforce that `ConsentForm.patient` matches `ConsentForm.document.patient`.
-
-The current model therefore permits a consent record assigned to one patient while referencing a document belonging to another patient.
+The inconsistency existed at the ORM level because `TreatmentPlanApproval` was not exposed through the audited API surface and no model validation enforced ownership consistency.
 
 ##### Audit evidence
 
-* `domain_coherence/G2_COHERENCE_TRACKER.md`
-
-  * `G2-CHECK-11 — Document Management`
-  * `Cross-Patient Consent Inconsistency`
+- `CROSS_MODEL_CONSISTENCY_AUDIT.md`
+  - `B3-005`
 
 ##### Integrity risk
 
-A consent record can expose conflicting patient ownership through two independent relation paths.
+A treatment-plan approval could be assigned to one patient while referencing a treatment plan belonging to another patient.
 
-When a document is present, the document already determines patient ownership, while `ConsentForm.patient` remains a second unconstrained source of patient ownership truth.
-
-This can associate a clinical consent with a patient different from the patient owning the related document.
+This created inconsistent clinical approval ownership across patient-scoped records.
 
 ##### Required remediation
 
-Enforce patient consistency between a consent form and its related document.
+Enforce patient consistency between a treatment-plan approval and its referenced treatment plan.
 
-`ConsentForm.patient` must always match `ConsentForm.document.patient`.
-
-The R3 remediation must enforce the existing invariant without prematurely consolidating `documents.ConsentForm` and `patients.PatientConsent`.
-
-The final ownership and model consolidation decision remains dependent on the G11 document-management domain review.
+When `treatment_plan` is present, `TreatmentPlanApproval.patient` must match `TreatmentPlan.patient`.
 
 ##### Dependencies
 
-* DEL-002
-* AUTH-001
-* FILE-001
-* G11 document-management domain validation
+None.
 
 ##### Implementation evidence
 
-Not implemented.
+Implemented.
+
+The invariant is now enforced in the model.
+
+`TreatmentPlanApproval.clean()` validates that:
+
+- `TreatmentPlanApproval.patient == TreatmentPlan.patient`.
+
+`TreatmentPlanApproval.save()` now executes `full_clean()` before persistence, ensuring the invariant is enforced consistently for ORM writes.
+
+The ORM characterization test has been converted into a regression test asserting that mismatched patient relationships raise `ValidationError`.
+
+No API surface was introduced.
 
 ##### Validation strategy
 
-* verify ORM creation with mismatched consent and document patients is rejected,
-* verify matching patient relationships remain accepted,
-* verify updates cannot introduce a cross-patient consent/document mismatch,
-* add model consistency regression tests,
-* verify no unintended direct API exposure of `ConsentForm` is introduced,
-* run `manage.py check`,
-* run the full Django test suite,
-* run `python3 -m compileall -q .`,
-* run `git diff --check`.
+- verify ORM creation with mismatched approval and treatment-plan patients is rejected,
+- verify matching patient relationships remain accepted,
+- add model consistency regression tests,
+- verify no unintended API exposure is introduced,
+- run `manage.py check`,
+- run the full Django test suite,
+- run `python3 -m compileall -q .`,
+- run `git diff --check`.
 
 ##### Validation evidence
 
-Not validated.
+Validated.
+
+Validation completed successfully:
+
+- `manage.py check` ✓
+- full Django test suite ✓
+- `python3 -m compileall -q .` ✓
+- `git diff --check` ✓
 
 ##### B14 freeze status
 
-Not ready for backend contract freeze.
-
+Ready for backend contract freeze.
 #### RULE-001 — Appointment accepts invalid chronological intervals
 
 **Status:** OPEN
@@ -1420,9 +1504,9 @@ Not ready for backend contract freeze.
 
 #### RULE-003 — Payment accepts invalid amounts and invoice overpayment
 
-**Status:** OPEN  
-**Priority:** P0  
-**Domain:** Business rules  
+**Status:** OPEN
+**Priority:** P0
+**Domain:** Business rules
 **Remediation phase:** R4
 
 ##### Verified finding
@@ -1506,9 +1590,9 @@ Not ready for backend contract freeze.
 
 #### RULE-004 — Calculated invoice totals and balances are client-writable
 
-**Status:** OPEN  
-**Priority:** P0  
-**Domain:** Business rules  
+**Status:** OPEN
+**Priority:** P0
+**Domain:** Business rules
 **Remediation phase:** R4
 
 ##### Verified finding

@@ -1,12 +1,13 @@
 from django.utils import timezone
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APITestCase
-
+from django.core.exceptions import ValidationError
 from accounts.models import User
 from appointments.models import Appointment, Room
 from billing.models import Invoice, Payment
 from patients.models import Patient
 from treatment_plans.models import TreatmentPlan, TreatmentPlanApproval
+from treatments.models import Treatment
 
 
 class CrossModelConsistencyTests(APITestCase):
@@ -86,11 +87,8 @@ class CrossModelConsistencyTests(APITestCase):
         self.assertEqual(payment.invoice_id, invoice.id)
         self.assertNotEqual(payment.patient_id, invoice.patient_id)
 
-    def test_api_invoice_patient_mismatch_with_related_treatment_plan_patient_is_accepted(self):
-        """Invoice duplicates patient and also references TreatmentPlan.
-
-        CURRENT: API accepts invoice.patient != invoice.related_treatment_plan.patient.
-        """
+    def test_api_invoice_patient_mismatch_with_related_treatment_plan_patient_is_rejected(self):
+        """Invoice patient must match the related treatment plan patient."""
 
         patient_a = self._mk_patient("PlanA")
         patient_b = self._mk_patient("InvB")
@@ -100,7 +98,10 @@ class CrossModelConsistencyTests(APITestCase):
             status="draft",
         )
 
-        self.client.credentials(HTTP_AUTHORIZATION=f"Token {self.accountant_token.key}")
+        self.client.credentials(
+            HTTP_AUTHORIZATION=f"Token {self.accountant_token.key}"
+        )
+
         resp = self.client.post(
             "/api/invoices/",
             {
@@ -114,12 +115,16 @@ class CrossModelConsistencyTests(APITestCase):
             format="json",
         )
 
-        self.assertEqual(resp.status_code, 201, resp.data)
-        invoice = Invoice.objects.get(pk=resp.data["id"])
-        self.assertIsNotNone(invoice.related_treatment_plan_id)
-        self.assertNotEqual(invoice.patient_id, invoice.related_treatment_plan.patient_id)
+        self.assertEqual(resp.status_code, 400, resp.data)
+        self.assertIn("related_treatment_plan", resp.data)
 
-    def test_api_treatment_patient_mismatch_with_appointment_patient_is_accepted(self):
+        self.assertFalse(
+            Invoice.objects.filter(
+                reference_number="INV-PLAN-MISMATCH"
+            ).exists()
+            )
+
+    def test_api_treatment_patient_mismatch_with_appointment_patient_is_rejected(self):
         """Treatment has both a direct patient FK and an optional appointment FK.
 
         CURRENT: API accepts Treatment.patient != Treatment.appointment.patient.
@@ -164,13 +169,18 @@ class CrossModelConsistencyTests(APITestCase):
             },
             format="json",
         )
-        self.assertEqual(treat_resp.status_code, 201, treat_resp.data)
 
-        treatment = self.dentist.treatments.get(pk=treat_resp.data["id"])
-        self.assertIsNotNone(treatment.appointment_id)
-        self.assertNotEqual(treatment.patient_id, treatment.appointment.patient_id)
+        self.assertEqual(treat_resp.status_code, 400, treat_resp.data)
 
-    def test_api_treatment_patient_mismatch_with_treatment_plan_patient_is_accepted(self):
+        self.assertIn("appointment", treat_resp.data)
+
+        self.assertFalse(
+            Treatment.objects.filter(
+                code="TREAT-MISMATCH-APPT"
+            ).exists()
+        )
+
+    def test_api_treatment_patient_mismatch_with_treatment_plan_patient_is_rejected(self):
         """Treatment has both a direct patient FK and an optional treatment_plan FK.
 
         CURRENT: API accepts Treatment.patient != Treatment.treatment_plan.patient.
@@ -201,32 +211,39 @@ class CrossModelConsistencyTests(APITestCase):
             },
             format="json",
         )
-        self.assertEqual(treat_resp.status_code, 201, treat_resp.data)
+        self.assertEqual(treat_resp.status_code, 400, treat_resp.data)
 
-        treatment = self.dentist.treatments.get(pk=treat_resp.data["id"])
-        self.assertIsNotNone(treatment.treatment_plan_id)
-        self.assertNotEqual(treatment.patient_id, treatment.treatment_plan.patient_id)
+        self.assertIn("treatment_plan", treat_resp.data)
 
-    def test_orm_treatment_plan_approval_patient_mismatch_with_plan_patient_is_accepted(self):
-        """B1 finding: TreatmentPlanApproval duplicates patient FK.
+        self.assertFalse(
+            Treatment.objects.filter(
+                code="TREAT-MISMATCH-PLAN"
+            ).exists()
+        )
 
-        CURRENT: ORM allows TreatmentPlanApproval.patient != TreatmentPlan.patient.
-
-        Note: approvals are not exposed via DRF routers (PHASE B0 surface), so
-        this is ORM-only evidence.
-        """
+    def test_orm_treatment_plan_approval_patient_mismatch_with_plan_patient_is_rejected(self):
+        """TreatmentPlanApproval patient must match the treatment plan patient."""
 
         patient_a = self._mk_patient("PlanApproverA")
         patient_b = self._mk_patient("ApprovalB")
 
-        plan = TreatmentPlan.objects.create(patient=patient_a, status="draft")
-
-        approval = TreatmentPlanApproval.objects.create(
-            treatment_plan=plan,
-            patient=patient_b,
-            approved_by=self.dentist,
-            approved_at=timezone.now(),
-            signature_type="typed",
+        plan = TreatmentPlan.objects.create(
+            patient=patient_a,
+            status="draft",
         )
 
-        self.assertNotEqual(approval.patient_id, approval.treatment_plan.patient_id)
+        with self.assertRaises(ValidationError):
+            TreatmentPlanApproval.objects.create(
+                treatment_plan=plan,
+                patient=patient_b,
+                approved_by=self.dentist,
+                approved_at=timezone.now(),
+                signature_type="typed",
+            )
+
+        self.assertFalse(
+            TreatmentPlanApproval.objects.filter(
+                treatment_plan=plan,
+                patient=patient_b,
+            ).exists()
+        )

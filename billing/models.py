@@ -41,6 +41,26 @@ class Invoice(TimestampedModel):
         on_delete=models.SET_NULL,
     )
 
+    def clean(self):
+        super().clean()
+
+        if (
+            self.related_treatment_plan_id is not None
+            and self.patient_id != self.related_treatment_plan.patient_id
+        ):
+            raise ValidationError(
+                {
+                    "related_treatment_plan": (
+                        "The related treatment plan must belong "
+                        "to the same patient as the invoice."
+                    )
+                }
+            )
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
     def delete(self, using=None, keep_parents=False):
         raise ValidationError(
             {

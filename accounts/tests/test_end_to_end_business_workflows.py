@@ -1,5 +1,6 @@
 from datetime import date, timedelta
 from decimal import Decimal
+from django.core.exceptions import ValidationError
 
 from django.test import TestCase
 from django.utils import timezone
@@ -111,7 +112,10 @@ class EndToEndBusinessWorkflowTests(TestCase):
         self.assertEqual(payment.invoice, invoice)
 
     def test_treatment_can_reference_appointment_for_different_patient(self):
+        """Treatment patient must match appointment patient."""
+
         start_at = timezone.now()
+
         appointment = Appointment.objects.create(
             patient=self.other_patient,
             practitioner=self.dentist,
@@ -119,18 +123,22 @@ class EndToEndBusinessWorkflowTests(TestCase):
             end_at=start_at + timedelta(minutes=30),
         )
 
-        treatment = Treatment.objects.create(
-            patient=self.patient,
-            dentist=self.dentist,
-            appointment=appointment,
-            status="planned",
-            category=Treatment.Category.CONSULTATION,
-            code="CONS-XPAT",
-            label="Cross-patient treatment",
+        with self.assertRaises(ValidationError) as exc:
+            Treatment.objects.create(
+                patient=self.patient,
+                dentist=self.dentist,
+                appointment=appointment,
+                status="planned",
+                category=Treatment.Category.CONSULTATION,
+                code="CONS-XPAT",
+                label="Cross-patient treatment",
+            )
+
+        self.assertIn("appointment", exc.exception.message_dict)
+
+        self.assertFalse(
+            Treatment.objects.filter(code="CONS-XPAT").exists()
         )
-
-        self.assertNotEqual(treatment.patient, treatment.appointment.patient)
-
     def test_treatment_can_reference_plan_for_different_patient(self):
         treatment_plan = TreatmentPlan.objects.create(
             patient=self.other_patient,
@@ -148,10 +156,23 @@ class EndToEndBusinessWorkflowTests(TestCase):
             label="Cross-plan treatment",
         )
 
-        self.assertNotEqual(
-            treatment.patient,
-            treatment.treatment_plan.patient,
+    def test_treatment_can_reference_plan_for_different_patient(self):
+        treatment_plan = TreatmentPlan.objects.create(
+            patient=self.other_patient,
+            created_by=self.dentist,
+            status="draft",
         )
+
+        with self.assertRaises(ValidationError):
+            Treatment.objects.create(
+                patient=self.patient,
+                dentist=self.dentist,
+                treatment_plan=treatment_plan,
+                status="planned",
+                category=Treatment.Category.CONSULTATION,
+                code="CONS-XPLAN",
+                label="Cross-plan treatment",
+            )
 
     def test_invoice_line_can_reference_treatment_for_different_patient(self):
         treatment = Treatment.objects.create(

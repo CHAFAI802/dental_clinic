@@ -1,5 +1,6 @@
 from django.db import models
 from dental_clinic.common import TimestampedModel
+from django.core.exceptions import ValidationError
 
 
 class DocumentTemplate(TimestampedModel):
@@ -46,14 +47,47 @@ class Document(TimestampedModel):
 
 
 class DocumentAttachment(TimestampedModel):
-    patient = models.ForeignKey('patients.Patient', related_name='document_attachments', on_delete=models.CASCADE)
-    document = models.ForeignKey('documents.Document', null=True, blank=True, related_name='attachments', on_delete=models.CASCADE)
-    uploaded_by = models.ForeignKey('accounts.User', null=True, blank=True, on_delete=models.SET_NULL)
+    patient = models.ForeignKey(
+        'patients.Patient',
+        related_name='document_attachments',
+        on_delete=models.CASCADE,
+    )
+    document = models.ForeignKey(
+        'documents.Document',
+        null=True,
+        blank=True,
+        related_name='attachments',
+        on_delete=models.CASCADE,
+    )
+    uploaded_by = models.ForeignKey(
+        'accounts.User',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+    )
     file = models.FileField(upload_to='document_attachments/')
     file_type = models.CharField(max_length=64)
     description = models.TextField(blank=True)
     is_confidential = models.BooleanField(default=False)
 
+    def clean(self):
+        super().clean()
+
+        if (
+            self.document is not None
+            and self.patient_id != self.document.patient_id
+        ):
+            raise ValidationError(
+                {
+                    'patient': (
+                        "Attachment patient must match the related document patient."
+                    )
+                }
+            )
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
 
 class ConsentForm(TimestampedModel):
     patient = models.ForeignKey('patients.Patient', related_name='consent_forms', on_delete=models.CASCADE)
@@ -64,6 +98,21 @@ class ConsentForm(TimestampedModel):
     expires_at = models.DateTimeField(null=True, blank=True)
     status = models.CharField(max_length=32)
 
+    def clean(self):
+        super().clean()
+
+        if self.patient_id != self.document.patient_id:
+            raise ValidationError(
+                {
+                    "patient": (
+                        "Consent patient must match the related document patient."
+                    )
+                }
+            )
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
 
 class DocumentHistory(TimestampedModel):
     document = models.ForeignKey('documents.Document', related_name='history', on_delete=models.CASCADE)

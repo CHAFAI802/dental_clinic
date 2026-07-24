@@ -1,5 +1,6 @@
 from django.db import models
 from dental_clinic.common import TimestampedModel, SoftDeleteModel
+from django.core.exceptions import ValidationError
 
 
 class TreatmentPlan(SoftDeleteModel):
@@ -43,9 +44,41 @@ class TreatmentPlanItem(TimestampedModel):
 
 
 class TreatmentPlanApproval(TimestampedModel):
-    treatment_plan = models.ForeignKey('treatment_plans.TreatmentPlan', related_name='approvals', on_delete=models.CASCADE)
-    patient = models.ForeignKey('patients.Patient', on_delete=models.CASCADE)
-    approved_by = models.ForeignKey('accounts.User', null=True, blank=True, on_delete=models.SET_NULL)
+    treatment_plan = models.ForeignKey(
+        'treatment_plans.TreatmentPlan',
+        related_name='approvals',
+        on_delete=models.CASCADE,
+    )
+    patient = models.ForeignKey(
+        'patients.Patient',
+        on_delete=models.CASCADE,
+    )
+    approved_by = models.ForeignKey(
+        'accounts.User',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+    )
     approved_at = models.DateTimeField()
     signature_type = models.CharField(max_length=64)
     notes = models.TextField(blank=True)
+
+    def clean(self):
+        super().clean()
+
+        if (
+            self.treatment_plan_id is not None
+            and self.patient_id != self.treatment_plan.patient_id
+        ):
+            raise ValidationError(
+                {
+                    "patient": (
+                        "The approval patient must belong "
+                        "to the same patient as the treatment plan."
+                    )
+                }
+            )
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)

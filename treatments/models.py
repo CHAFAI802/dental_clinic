@@ -1,5 +1,6 @@
 from django.db import models
 from dental_clinic.common import TimestampedModel, SoftDeleteModel
+from django.core.exceptions import ValidationError
 
 
 class Treatment(SoftDeleteModel):
@@ -30,6 +31,38 @@ class Treatment(SoftDeleteModel):
     tax_rate = models.DecimalField(max_digits=5, decimal_places=2, default=0)
     total_price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     notes = models.TextField(blank=True)
+
+    def clean(self):
+        super().clean()
+        if (
+            self.appointment_id is not None
+            and self.patient_id != self.appointment.patient_id
+        ):
+            raise ValidationError(
+                {
+                    "appointment": (
+                        "The appointment must belong "
+                        "to the same patient as the treatment."
+                    )
+                }
+            )
+        if (
+            self.treatment_plan_id is not None
+            and self.patient_id != self.treatment_plan.patient_id
+        ):
+            raise ValidationError(
+                {
+                    "treatment_plan": (
+                        "The treatment plan must belong "
+                        "to the same patient as the treatment."
+                    )
+                }
+            )
+
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
 
     class Meta:
         indexes = [models.Index(fields=['status', 'category']), models.Index(fields=['dentist', 'start_at'])]
