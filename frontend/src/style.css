@@ -1,0 +1,17 @@
+/*
+ * Point d'entrée CSS (importé par src/main.jsx).
+ * L'ordre des imports est significatif :
+ *   1. variables → jetons de design
+ *   2. base      → reset, typographie, boutons, formulaires
+ *   3. layout    → navbar, footer, pages, sections image/texte
+ *   4. home      → hero et sections de la page d'accueil
+ *   5. settings  → zone de paramétrage du site
+ *   6. dashboard → espace connecté (styles historiques conservés)
+ */
+
+@import "./styles/variables.css";
+@import "./styles/base.css";
+@import "./styles/layout.css";
+@import "./styles/home.css";
+@import "./styles/settings.css";
+@import "./styles/dashboard.css";
