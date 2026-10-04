@@ -113,10 +113,39 @@ class AppointmentRequestSerializer(serializers.Serializer):
     phone = serializers.CharField(required=False, allow_blank=True)
     birthdate = serializers.DateField(required=False)
     gender = serializers.CharField(required=False, allow_blank=True)
-    practitioner = serializers.PrimaryKeyRelatedField(queryset=Appointment._meta.get_field('practitioner').remote_field.model.objects.all())
+    practitioner = serializers.PrimaryKeyRelatedField(
+        queryset=Appointment._meta.get_field(
+            "practitioner"
+        ).remote_field.model.objects.all()
+    )
     start_at = serializers.DateTimeField()
     end_at = serializers.DateTimeField()
     reason = serializers.CharField(required=False, allow_blank=True)
+
+    def validate(self, attrs):
+        if not attrs.get("first_request"):
+            patient_code = attrs.get("patient_code", "").strip()
+
+            if not patient_code:
+                raise serializers.ValidationError(
+                    {"patient_code": "Veuillez fournir votre code patient."}
+                )
+
+            try:
+                patient = Patient.objects.get(patient_code=patient_code)
+            except Patient.DoesNotExist:
+                raise serializers.ValidationError(
+                    {"patient_code": "Code patient invalide."}
+                )
+
+            attrs["first_name"] = patient.first_name
+            attrs["last_name"] = patient.last_name
+            attrs["email"] = patient.email
+            attrs["phone"] = patient.phone
+            attrs["birthdate"] = patient.birthdate
+            attrs["gender"] = patient.gender
+
+        return attrs
 
     def create(self, validated_data):
         try:
