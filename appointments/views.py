@@ -35,6 +35,35 @@ class AppointmentViewSet(viewsets.ModelViewSet):
             )
 
         return queryset
+
+    @action(detail=True, methods=["post"])
+    def validate(self, request, pk=None):
+        if request.user.role != User.Role.RECEPTIONIST:
+            return Response(
+                {"detail": "Only receptionists can validate appointments."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        appointment = self.get_object()
+
+        if appointment.status != Appointment.Status.PENDING:
+            return Response(
+                {"detail": "Only pending appointments can be validated."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        appointment.status = Appointment.Status.CONFIRMED
+        appointment.save(changed_by=request.user)
+
+        appointment_confirmed_notification(appointment)
+
+        return Response(
+            AppointmentSerializer(
+                appointment,
+                context={"request": request},
+            ).data,
+            status=status.HTTP_200_OK,
+        )
     
 class RoomViewSet(viewsets.ModelViewSet):
     queryset = Room.objects.filter(is_active=True)
