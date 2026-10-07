@@ -76,8 +76,6 @@ class InvoiceCreationFromInvoiceLineTest(TestCase):
             patient=self.patient,
             dentist=self.dentist,
             prestation=self.prestation,
-            status=Treatment.Status.COMPLETED,
-            category=Treatment.Category.CONSULTATION,
             code="TRT-001",
             label="Consultation dentaire",
             description="Consultation",

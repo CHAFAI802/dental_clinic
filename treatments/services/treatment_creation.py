@@ -1,12 +1,9 @@
-from decimal import Decimal
-
 from django.core.exceptions import ValidationError
 from django.db import transaction
 
 from appointments.models import Appointment
-from appointments.services.appointmentstatus import complete_appointment_from_treatment 
-
-from billing.models import InvoiceLine, Prestation, PrestationCategory
+from appointments.services.appointmentstatus import complete_appointment_from_treatment
+from billing.models import InvoiceLine
 from treatments.models import Treatment
 
 
@@ -14,7 +11,7 @@ class TreatmentCreationService:
 
     @staticmethod
     @transaction.atomic
-    def create(*, appointment, prestation, dentist):
+    def create(*, appointment, prestation, dentist, quantity):
         if appointment.practitioner_id != dentist.id:
             raise ValidationError({
                 "appointment": (
@@ -42,11 +39,6 @@ class TreatmentCreationService:
             prestation=prestation,
             treatment_plan=None,
             notes="",
-            
-
-            # Valeurs temporaires nécessaires au modèle actuel.
-            status=Treatment.Status.PLANNED,
-            category=Treatment.Category.CONSULTATION,
             code=prestation.code,
             label=prestation.label,
             start_at=appointment.start_at,
@@ -56,7 +48,7 @@ class TreatmentCreationService:
             treatment=treatment,
             prestation=prestation,
             description=prestation.label,
-            quantity=Decimal("3.00"),# quantity doit etre accessible via dentiste interface elle releve de billing/invoiceline 
+            quantity=quantity,
         )
 
         complete_appointment_from_treatment(

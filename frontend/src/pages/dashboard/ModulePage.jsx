@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { useParams } from 'react-router-dom'
 import AppointmentsPage from './appointments/AppointmentsPage.jsx'
 import BillingPage from './billing/BillingPage.jsx'
+import PatientsPage from './patients/PatientsPage.jsx'
 import { useAuth } from '../../context/AuthContext.jsx'
 
 function ModulePage() {
@@ -24,6 +25,11 @@ function ModulePage() {
 
   if (moduleId === 'appointments') {
     return <AppointmentsPage />
+  }
+
+  // Module Patients : liste + dossier (?patient=<appointment.patient>).
+  if (moduleId === 'patients') {
+    return <PatientsPage />
   }
 
   // Le module Billing est rendu par son conteneur (onglets + section).

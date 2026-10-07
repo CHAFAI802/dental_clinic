@@ -33,7 +33,7 @@ class Patient(SoftDeleteModel):
     height_cm = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     smoker = models.BooleanField(default=False)
     pregnant = models.BooleanField(default=False)
-    allergies_summary = models.TextField(blank=True)
+    allergies_summary = models.BooleanField(default=False)
     medical_history_summary = models.TextField(blank=True)
     emergency_contact_name = models.CharField(max_length=150, blank=True)
     emergency_contact_relation = models.CharField(max_length=128, blank=True)

@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Patient,MedicalHistory
+from .models import Patient,MedicalHistory, Allergy
 
 
 class ReceptionistPatientSerializer(serializers.ModelSerializer):
@@ -53,6 +53,11 @@ class ReceptionistPatientSerializer(serializers.ModelSerializer):
 
 
 class PractitionerPatientSerializer(serializers.ModelSerializer):
+    allergies_summary = serializers.SerializerMethodField()
+
+    def get_allergies_summary(self, obj):
+        return obj.allergies.exists()
+
     class Meta:
         model = Patient
         fields = [
@@ -87,6 +92,7 @@ class PractitionerPatientSerializer(serializers.ModelSerializer):
             "gender",
             "email",
             "phone",
+            "allergies_summary",
         ]
 
 class MedicalHistorySerializer(serializers.ModelSerializer):
@@ -103,5 +109,20 @@ class MedicalHistorySerializer(serializers.ModelSerializer):
             'notes',
             'is_chronic',
             'is_acute',
+        ]
+        read_only_fields = ['patient']
+
+class AllergySerializer(serializers.ModelSerializer):
+    patient = serializers.PrimaryKeyRelatedField(read_only=True)
+
+    class Meta:
+        model = Allergy
+        fields = [
+            'id',
+            'patient',
+            'substance',
+            'reaction',
+            'severity',
+            'notes',
         ]
         read_only_fields = ['patient']

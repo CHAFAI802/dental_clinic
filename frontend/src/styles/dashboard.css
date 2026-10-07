@@ -4,7 +4,6 @@
  */
 
 .dashboard-shell {
-  max-width: var(--container-width);
   margin: var(--space-6) auto;
   background: var(--color-surface);
   border: 1px solid var(--color-border);

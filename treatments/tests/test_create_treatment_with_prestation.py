@@ -1,5 +1,5 @@
 from datetime import date, timedelta
-
+from decimal import Decimal
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 from django.utils import timezone
@@ -74,6 +74,7 @@ class CreateTreatmentFromConfirmedAppointmentTest(APITestCase):
             {
                 "appointment": self.appointment.pk,
                 "prestation": self.prestation.pk,
+                "quantity": Decimal("3.00"),
             },
             format="json",
         )

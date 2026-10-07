@@ -1,8 +1,9 @@
 from rest_framework import status, viewsets
 from rest_framework.permissions import AllowAny
+from django.db import transaction
 from rest_framework.response import Response
-from rest_framework.views import APIView 
-from rest_framework.decorators import action 
+from rest_framework.views import APIView
+from rest_framework.decorators import action
 from datetime import datetime
 from notifications.services.appointment_confirmed_notification import (
     appointment_confirmed_notification,
@@ -64,7 +65,37 @@ class AppointmentViewSet(viewsets.ModelViewSet):
             ).data,
             status=status.HTTP_200_OK,
         )
-    
+
+    @action(detail=True, methods=["post"])
+    def delete(self, request, pk=None):
+        if request.user.role != User.Role.RECEPTIONIST:
+            return Response(
+                {"detail": "Only receptionists can delete appointments."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        appointment = self.get_object()
+
+        if appointment.status != Appointment.Status.CONFIRMED:
+            return Response(
+                {"detail": "Only confirmed appointments can be deleted."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        with transaction.atomic():
+            appointment.status = Appointment.Status.CANCELLED
+            appointment.save(changed_by=request.user)
+
+            appointment.delete()
+
+        return Response(
+            AppointmentSerializer(
+                appointment,
+                context={"request": request},
+            ).data,
+            status=status.HTTP_200_OK,
+        )
+
 class RoomViewSet(viewsets.ModelViewSet):
     queryset = Room.objects.filter(is_active=True)
     serializer_class = RoomSerializer

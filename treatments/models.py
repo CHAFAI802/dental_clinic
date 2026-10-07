@@ -4,28 +4,13 @@ from django.core.exceptions import ValidationError
 
 
 class Treatment(SoftDeleteModel):
-    class Category(models.TextChoices):
-        CONSULTATION = 'consultation', 'Consultation'
-        DETARTRAGE = 'detartrage', 'Détartrage'
-        EXTRACTION = 'extraction', 'Extraction'
-        IMPLANT = 'implant', 'Implant'
-        ENDODONTIE = 'endodontie', 'Endodontie'
-        ORTHODONTIE = 'orthodontie', 'Orthodontie'
-        CHIRURGIE = 'chirurgie', 'Chirurgie'
-        AUTRE = 'autre', 'Autre'
-
-    class Status(models.TextChoices):
-        PLANNED = 'planned', 'Planned'
-        COMPLETED = 'completed', 'Completed'
-
+    
     patient = models.ForeignKey('patients.Patient', related_name='treatments', on_delete=models.CASCADE)
     dentist = models.ForeignKey('accounts.User', related_name='treatments', on_delete=models.PROTECT)
     assistant = models.ForeignKey('accounts.User', null=True, blank=True, related_name='assisted_treatments', on_delete=models.SET_NULL)
     appointment = models.ForeignKey('appointments.Appointment', related_name='treatments', null=True, blank=True, on_delete=models.SET_NULL)
     treatment_plan = models.ForeignKey('treatment_plans.TreatmentPlan', null=True, blank=True, on_delete=models.SET_NULL)
     prestation = models.ForeignKey('billing.Prestation', on_delete=models.PROTECT, related_name='treatments')
-    status = models.CharField(max_length=32, choices=Status.choices)
-    category = models.CharField(max_length=32, choices=Category.choices)
     code = models.CharField(max_length=64)
     label = models.CharField(max_length=255)
     description = models.TextField(blank=True)
@@ -34,22 +19,8 @@ class Treatment(SoftDeleteModel):
     duration_minutes = models.PositiveIntegerField(null=True, blank=True)
     notes = models.TextField(blank=True)
 
-
-
     def clean(self):
         super().clean()
-
-        # STATE-003: Status vocabulary enforcement
-        valid_statuses = [choice.value for choice in self.Status]
-        if self.status not in valid_statuses:
-            raise ValidationError(
-                {
-                    "status": (
-                        f"'{self.status}' is not a valid status. "
-                        f"Must be one of: {', '.join(valid_statuses)}."
-                    )
-                }
-            )
 
         if (
             self.appointment_id is not None
@@ -82,7 +53,7 @@ class Treatment(SoftDeleteModel):
         return super().save(*args, **kwargs)
 
     class Meta:
-        indexes = [models.Index(fields=['status', 'category']), models.Index(fields=['dentist', 'start_at'])]
+        indexes = [models.Index(fields=['dentist', 'start_at'])]
 
     def __str__(self):
         return f'{self.label} for {self.patient}'

@@ -220,6 +220,7 @@ def complete_appointment_from_treatment(*, treatment):
     appointment.status = Appointment.Status.COMPLETED
     appointment.save(changed_by=treatment.dentist)
 
-    return appointment
+    treatment.end_at = appointment.completed_at
+    treatment.save(update_fields=["end_at", "updated_at"])
 
-    
+    return appointment

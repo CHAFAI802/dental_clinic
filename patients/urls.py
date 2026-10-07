@@ -3,6 +3,7 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from .views import (
+    AllergyViewSet,
     PractitionerPatientViewSet,
     ReceptionistPatientViewSet,
     MedicalHistoryViewSet,
@@ -26,6 +27,12 @@ router.register(
     "medical-histories",
     MedicalHistoryViewSet,
     basename="medical-history",
+)
+
+router.register(
+    "allergies",
+    AllergyViewSet,
+    basename="allergy",
 )
 
 urlpatterns = [
