@@ -157,6 +157,14 @@ function ModuleIcon({ moduleId }) {
         </svg>
       )
 
+    case 'settings':
+      return (
+        <svg {...commonProps}>
+          <circle cx="12" cy="12" r="3" />
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+        </svg>
+      )
+
     case 'reports':
       return (
         <svg {...commonProps}>
@@ -197,9 +205,16 @@ function ModuleIcon({ moduleId }) {
 }
 
 function DashboardHome() {
-  const { accessibleModules } = useAuth()
+  const { accessibleModules, user } = useAuth()
 
-  if (!Array.isArray(accessibleModules) || accessibleModules.length === 0) {
+  // Paramétrage : entrée frontend dédiée, visible uniquement pour les rôles
+  // autorisés sur les API concernées (IsAdministrator). Elle ne dépend pas
+  // d'un éventuel module « settings » retourné par le backend.
+  const canManageSettings = ['super_admin', 'administrator'].includes(user?.role)
+
+  const modules = Array.isArray(accessibleModules) ? accessibleModules : []
+
+  if (modules.length === 0 && !canManageSettings) {
     return (
       <section>
         <h2>Vue d’ensemble</h2>
@@ -214,7 +229,7 @@ function DashboardHome() {
       <p>Modules accessibles.</p>
 
       <div className="dashboard-grid">
-        {accessibleModules.map((module) => (
+        {modules.map((module) => (
           <Link
             key={module.id}
             to={routeForModule(module)}
@@ -231,6 +246,23 @@ function DashboardHome() {
             </p>
           </Link>
         ))}
+
+        {canManageSettings && (
+          <Link
+            to="/dashboard/settings"
+            className="dashboard-card dashboard-module-card"
+          >
+            <div className="dashboard-module-icon">
+              <ModuleIcon moduleId="settings" />
+            </div>
+
+            <h3>Paramétrage</h3>
+
+            <p className="dashboard-card-desc">
+              Catégories de prestations, prestations, tarifs et horaires de travail.
+            </p>
+          </Link>
+        )}
       </div>
     </section>
   )

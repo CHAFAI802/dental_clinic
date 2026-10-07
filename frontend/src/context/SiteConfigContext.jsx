@@ -8,21 +8,44 @@ import {
   saveSiteConfig,
 } from '../config/siteConfig.js'
 import { applyTheme, resetTheme } from '../config/theme.js'
+import { apiGet, apiPatch } from '../api/client.js'
 
 const SiteConfigContext = createContext(null)
 
 /**
  * Fournit la configuration du site à tout le frontend.
- * - `config` : configuration courante (défaut + surcharges locales)
+ * - `config` : configuration courante (serveur, avec cache local initial)
  * - `updateConfig` : modification profonde (section partielle)
- * - `saveConfig` : persistance (localStorage aujourd'hui, API demain)
+ * - `saveConfig` : persistance via l'API, avec cache local après succès
  * - `resetConfig` : retour aux valeurs par défaut
  *
- * Quand l'API d'administration du site existera, seule la persistance
- * (`saveConfig` / `loadSiteConfig`) devra être remplacée par un appel réseau.
+ * Le cache local sert à afficher la dernière configuration connue avant
+ * l'hydratation depuis le serveur, pas à remplacer une sauvegarde échouée.
  */
 export function SiteConfigProvider({ children }) {
   const [config, setConfig] = useState(() => loadSiteConfig())
+
+  useEffect(() => {
+    let isMounted = true
+
+    async function hydrateConfig() {
+      try {
+        const payload = await apiGet('/site-settings/')
+        if (!payload?.config || !isMounted) return
+
+        const merged = mergeSiteConfig(defaultSiteConfig, payload.config)
+        setConfig(merged)
+        saveSiteConfig(merged)
+      } catch {
+        // Le cache local reste utilisable si le serveur est temporairement inaccessible.
+      }
+    }
+
+    hydrateConfig()
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   // Thème appliqué à :root à chaque changement de configuration.
   useEffect(() => {
@@ -40,11 +63,18 @@ export function SiteConfigProvider({ children }) {
     setConfig((current) => mergeSiteConfig(current, partial || {}))
   }, [])
 
-  const saveConfig = useCallback((nextConfig) => {
+  const saveConfig = useCallback(async (nextConfig) => {
     const merged = mergeSiteConfig(defaultSiteConfig, nextConfig)
-    saveSiteConfig(merged)
-    setConfig(merged)
-    return merged
+    const payload = await apiPatch('/site-settings/', { config: merged })
+
+    if (!payload?.config || typeof payload.config !== 'object' || Array.isArray(payload.config)) {
+      throw new Error('Réponse invalide du serveur lors de la sauvegarde.')
+    }
+
+    const combined = mergeSiteConfig(defaultSiteConfig, payload.config)
+    setConfig(combined)
+    saveSiteConfig(combined)
+    return combined
   }, [])
 
   const resetConfig = useCallback(() => {

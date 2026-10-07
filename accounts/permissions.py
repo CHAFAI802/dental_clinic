@@ -164,6 +164,49 @@ class InvoiceLinePermission(BasePermission):
         return False
 
 
+class PrestationPermission(BasePermission):
+    """
+    Les prestations sont consultables par les utilisateurs autorisés
+    de la clinique, mais leur gestion est réservée aux administrateurs.
+
+    Dentiste :
+        GET     autorisé
+        POST    refusé
+        PATCH   refusé
+        DELETE  refusé
+
+    Administrateur / Super admin :
+        GET     autorisé
+        POST    autorisé
+        PATCH   autorisé
+        DELETE  autorisé
+    """
+
+    def has_permission(self, request, view):
+        action = view.action
+
+        if action in ['list', 'retrieve']:
+            return _has_any_role(
+                request,
+                (
+                    User.Role.DENTIST,
+                    User.Role.ADMINISTRATOR,
+                    User.Role.SUPER_ADMIN,
+                ),
+            )
+
+        if action in ['create', 'update', 'partial_update', 'destroy']:
+            return _has_any_role(
+                request,
+                (
+                    User.Role.ADMINISTRATOR,
+                    User.Role.SUPER_ADMIN,
+                ),
+            )
+
+        return False
+
+
 class InvoicePermission(BasePermission):
     """
     Invoice is a read-only resource for most clinic roles.

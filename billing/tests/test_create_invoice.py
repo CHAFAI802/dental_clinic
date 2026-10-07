@@ -188,6 +188,25 @@ class InvoiceCreationFromInvoiceLineTest(TestCase):
             "A0002/2026",
         )
 
+    def test_generate_next_reference_includes_soft_deleted_invoice(self):
+        invoice = Invoice.objects.create(
+            patient=self.patient,
+            created_by=self.dentist,
+            issued_at=date(2026, 9, 17),
+            due_date=date(2026, 9, 17),
+            reference_number="A0001/2026",
+        )
+
+        invoice.delete()
+
+        reference = Invoice.generate_reference_number(
+            date(2026, 9, 17)
+        )
+
+        self.assertEqual(
+            reference,
+            "A0002/2026",
+        )
 
     def test_generate_reference_after_z9999(self):
         Invoice.objects.create(

@@ -1,6 +1,6 @@
 from rest_framework import status, viewsets
 from .models import Invoice, Payment, Estimate, CreditNote, InvoiceLine, PaymentMethod, Prestation, PrestationCategory, PrestationTarif
-from accounts.permissions import IsAccountantOrAdmin,IsAdministrator,InvoiceLinePermission,InvoicePermission
+from accounts.permissions import IsAccountantOrAdmin,IsAdministrator,InvoiceLinePermission,InvoicePermission, PrestationPermission
 from .serializers import InvoiceSerializer, PaymentSerializer, EstimateSerializer, CreditNoteSerializer, InvoiceLineSerializer, PaymentMethodSerializer, PrestationSerializer, PrestationCategorySerializer, PrestationTarifSerializer
 from rest_framework.response import Response
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -14,7 +14,7 @@ class PrestationCategoryViewSet(viewsets.ModelViewSet):
 class PrestationViewSet(viewsets.ModelViewSet):
     queryset = Prestation.objects.all()
     serializer_class = PrestationSerializer
-    permission_classes = [IsAdministrator]
+    permission_classes = [PrestationPermission]
 
 class PrestationTarifViewSet(viewsets.ModelViewSet):
     queryset = PrestationTarif.objects.all()

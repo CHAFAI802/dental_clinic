@@ -128,17 +128,31 @@ function SiteSettings() {
   const { config, updateConfig, saveConfig, resetConfig } = useSiteConfig()
   const [activePanel, setActivePanel] = useState(PANELS[0].id)
   const [savedMessage, setSavedMessage] = useState('')
+  const [saveError, setSaveError] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
 
-  const handleSave = () => {
-    saveConfig(config)
-    setSavedMessage('Configuration enregistrée dans ce navigateur.')
-    window.setTimeout(() => setSavedMessage(''), 3000)
+  const handleSave = async () => {
+    setSavedMessage('')
+    setSaveError('')
+    setIsSaving(true)
+
+    try {
+      await saveConfig(config)
+      setSavedMessage('Configuration enregistrée.')
+      window.setTimeout(() => setSavedMessage(''), 3000)
+    } catch (error) {
+      const status = error?.status ? ` (HTTP ${error.status})` : ''
+      setSaveError(`Impossible d’enregistrer la configuration.${status}`)
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   const handleReset = () => {
     if (window.confirm('Rétablir la configuration par défaut du site ?')) {
       resetConfig()
-      setSavedMessage('Configuration par défaut restaurée.')
+      setSaveError('')
+      setSavedMessage('Valeurs par défaut chargées localement ; elles ne sont pas enregistrées sur le serveur.')
       window.setTimeout(() => setSavedMessage(''), 3000)
     }
   }
@@ -675,17 +689,15 @@ function SiteSettings() {
         <h1>Paramétrage du site public</h1>
         <p>
           Modifiez l’identité, le hero, les sections et les textes du site. Les changements
-          s’appliquent en direct ; « Enregistrer » les conserve dans ce navigateur.
+          s’appliquent en direct ; « Enregistrer » les transmet au serveur.
         </p>
       </header>
 
       <div className="settings-notice">
         <Icon name="bell" />
         <span>
-          <strong>Stockage local en attendant l’API.</strong> Aucun endpoint d’administration
-          n’existe côté backend : cette zone utilisera l’API de configuration du site dès qu’elle
-          sera disponible, avec les permissions existantes. Aucune modification backend n’a été
-          effectuée.
+          <strong>Configuration centralisée sur le serveur.</strong> Les valeurs enregistrées sont
+          partagées avec les visiteurs du site.
         </span>
       </div>
 
@@ -707,14 +719,15 @@ function SiteSettings() {
       </div>
 
       <div className="settings-actions">
-        <button type="button" className="btn btn-primary" onClick={handleSave}>
-          Enregistrer
+        <button type="button" className="btn btn-primary" onClick={handleSave} disabled={isSaving}>
+          {isSaving ? 'Enregistrement…' : 'Enregistrer'}
         </button>
         <Link className="btn btn-outline" to="/">
           Voir le site
         </Link>
         <span className="spacer" />
-        {savedMessage && <span className="success-text">{savedMessage}</span>}
+        {savedMessage && <span className="success-text" role="status">{savedMessage}</span>}
+        {saveError && <span className="error-text" role="alert">{saveError}</span>}
         <button type="button" className="btn btn-outline" onClick={handleReset}>
           Rétablir les valeurs par défaut
         </button>

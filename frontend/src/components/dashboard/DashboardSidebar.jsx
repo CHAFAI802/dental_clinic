@@ -18,9 +18,10 @@ function routeForModule(module) {
 function DashboardSidebar({ modules }) {
   const { user } = useAuth()
 
-  // Horaires de travail : accès frontend limité aux rôles autorisés sur
-  // l'API /api/working-hours/ (IsAdministrator).
-  const canManageWorkingHours = ['super_admin', 'administrator'].includes(user?.role)
+  // Paramétrage : point d’accès frontend aux pages de configuration
+  // (catalogue des prestations et horaires), limité aux rôles autorisés sur
+  // ces API (IsAdministrator).
+  const canManageSettings = ['super_admin', 'administrator'].includes(user?.role)
 
   const ordered = Array.isArray(modules)
     ? [...modules].sort((a, b) => (a?.name || '').localeCompare(b?.name || ''))
@@ -32,8 +33,8 @@ function DashboardSidebar({ modules }) {
       to: routeForModule(module),
       label: module.name,
     })),
-    ...(canManageWorkingHours
-      ? [{ key: 'working-hours', to: '/dashboard/working-hours', label: 'Horaires de travail' }]
+    ...(canManageSettings
+      ? [{ key: 'settings', to: '/dashboard/settings', label: 'Paramétrage' }]
       : []),
   ].sort((a, b) => a.label.localeCompare(b.label))
 

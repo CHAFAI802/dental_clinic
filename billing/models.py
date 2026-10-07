@@ -394,7 +394,7 @@ class Invoice(SoftDeleteModel):
     def generate_reference_number(cls, invoice_date):
         year = invoice_date.year
 
-        references = cls.objects.filter(
+        references = cls.all_objects.filter(
             reference_number__endswith=f"/{year}"
         ).values_list("reference_number", flat=True)
 
