@@ -99,6 +99,16 @@
   background: var(--color-surface);
 }
 
+.dashboard-module-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 72px;
+  margin-bottom: 1rem;
+  border-radius: 14px;
+}
+
 .dashboard-card h3 {
   margin-top: 0;
   margin-bottom: var(--space-2);

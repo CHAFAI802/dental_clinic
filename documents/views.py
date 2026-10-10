@@ -2,11 +2,22 @@ from rest_framework import viewsets
 
 from accounts.models import User
 from appointments.models import Appointment
-from documents.models import Document, DocumentTemplate
+from documents.models import Document, DocumentTemplate, DocumentTemplateVersion, DocumentType
 from treatments.models import Treatment
 
 from accounts.permissions import IsStaffMember
-from .serializers import DocumentSerializer, DocumentTemplateSerializer
+from .serializers import (
+    DocumentSerializer,
+    DocumentTemplateSerializer,
+    DocumentTemplateVersionSerializer,
+    DocumentTypeSerializer,
+)
+
+
+class DocumentTypeViewSet(viewsets.ModelViewSet):
+    queryset = DocumentType.objects.filter(is_active=True)
+    serializer_class = DocumentTypeSerializer
+    permission_classes = [IsStaffMember]
 
 
 class DocumentViewSet(viewsets.ModelViewSet):
@@ -54,4 +65,10 @@ class DocumentViewSet(viewsets.ModelViewSet):
 class DocumentTemplateViewSet(viewsets.ModelViewSet):
     queryset = DocumentTemplate.objects.filter(is_active=True)
     serializer_class = DocumentTemplateSerializer
+    permission_classes = [IsStaffMember]
+
+
+class DocumentTemplateVersionViewSet(viewsets.ModelViewSet):
+    queryset = DocumentTemplateVersion.objects.all()
+    serializer_class = DocumentTemplateVersionSerializer
     permission_classes = [IsStaffMember]

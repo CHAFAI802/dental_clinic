@@ -25,6 +25,7 @@ services:
       SECRET_KEY: ${SECRET_KEY}
       DATABASE_URL: ${DATABASE_URL}
       ALLOWED_HOSTS: ${ALLOWED_HOSTS}
+      PRIVATE_DOCUMENT_ROOT: /var/lib/dental/private-documents
       POSTGRES_HOST: db
       POSTGRES_PORT: "5432"
       API_EMAIL: ${API_EMAIL}
@@ -32,6 +33,7 @@ services:
     volumes:
       - .:/app
       - media_data:/app/media 
+      - private_documents_data:/var/lib/dental/private-documents
     depends_on:
       db:
         condition: service_healthy
@@ -51,3 +53,4 @@ services:
 volumes:
   postgres_data:
   media_data:
+  private_documents_data:

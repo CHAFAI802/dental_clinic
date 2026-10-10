@@ -1,6 +1,7 @@
 from django.db import models
 from django.core.exceptions import ValidationError
 from dental_clinic.common import TimestampedModel
+from documents.storage import private_document_storage
 
 
 class PrescriptionTemplate(TimestampedModel):
@@ -8,6 +9,11 @@ class PrescriptionTemplate(TimestampedModel):
     description = models.TextField(blank=True)
     content = models.TextField()
     variables = models.JSONField(default=list, blank=True)
+    docx_file = models.FileField(
+        upload_to='prescription_templates/',
+        storage=private_document_storage,
+        blank=True,
+    )
     is_active = models.BooleanField(default=True)
 
     def __str__(self):
@@ -45,6 +51,11 @@ class Prescription(TimestampedModel):
     generated_at = models.DateTimeField(null=True, blank=True)
     status = models.CharField(max_length=32, choices=Status.choices)
     pdf_file = models.FileField(upload_to='prescriptions/', null=True, blank=True)
+    generated_docx = models.FileField(
+        upload_to='generated_prescriptions/',
+        storage=private_document_storage,
+        blank=True,
+    )
     notes = models.TextField(blank=True)
 
 

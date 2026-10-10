@@ -141,6 +141,12 @@ STATICFILES_DIRS = [BASE_DIR / 'static']
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+PRIVATE_DOCUMENT_ROOT = Path(
+    env(
+        'PRIVATE_DOCUMENT_ROOT',
+        default=str(BASE_DIR.parent / '.dental-private-documents'),
+    )
+)
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 AUTH_USER_MODEL = 'accounts.User'

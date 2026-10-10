@@ -94,9 +94,6 @@ function Footer() {
             © {new Date().getFullYear()} {branding.cabinetName} — {footer.copyright}
           </span>
           {footer.legal && <span>{footer.legal}</span>}
-          <span>
-            <Link to="/settings/site">Paramétrage du site</Link>
-          </span>
         </div>
       </div>
     </footer>

@@ -37,6 +37,13 @@ const SECTIONS = [
     source: '/api/working-hours/',
     to: '/dashboard/working-hours',
   },
+  {
+    id: 'site',
+    label: 'Paramétrage du site',
+    description: 'Gérer les paramètres généraux du site.',
+    source: '/api/site/',
+    to: '/settings/site',
+  }
 ]
 
 function SettingsOverview() {

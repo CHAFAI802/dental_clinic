@@ -5,3 +5,4 @@ djangorestframework
 django-cors-headers==4.8.0
 django-axes[ipware]==8.3.1
 Pillow
+docxtpl==0.20.2
