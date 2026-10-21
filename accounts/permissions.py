@@ -107,6 +107,20 @@ class IsAppointmentManager(BasePermission):
             ),
         )
 
+class CanManageStock(BasePermission):
+    message = "Rôle gestionnaire de stock requis."
+
+    def has_permission(self, request, view):
+        return _has_any_role(
+            request,
+            (
+                User.Role.SUPER_ADMIN,
+                User.Role.ADMINISTRATOR,
+                User.Role.ACCOUNTANT,
+                User.Role.RECEPTIONIST,
+            ),
+        )
+
 
 class InvoiceLinePermission(BasePermission):
     """

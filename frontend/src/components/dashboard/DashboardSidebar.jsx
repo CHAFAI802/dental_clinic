@@ -17,6 +17,7 @@ function routeForModule(module) {
 
 function DashboardSidebar({ modules }) {
   const { user } = useAuth()
+  const isDentist = user?.role === 'dentist'
 
   // Paramétrage : point d’accès frontend aux pages de configuration
   // (catalogue des prestations et horaires), limité aux rôles autorisés sur
@@ -37,20 +38,39 @@ function DashboardSidebar({ modules }) {
       ? [{ key: 'settings', to: '/dashboard/settings', label: 'Paramétrage' }]
       : []),
   ].sort((a, b) => a.label.localeCompare(b.label))
+  const primaryLinks = isDentist
+    ? links.filter((link) => ['patients', 'appointments'].includes(link.key))
+    : links
+  const secondaryLinks = isDentist
+    ? links.filter((link) => !['patients', 'appointments'].includes(link.key))
+    : []
 
   return (
     <aside className="dashboard-sidebar">
-      <h2>Navigation</h2>
+      <h2>{isDentist ? 'Espace clinique' : 'Navigation'}</h2>
       <nav className="dashboard-nav">
         <NavLink to="/dashboard" end>
-          Vue d’ensemble
+          {isDentist ? 'Accueil médecin' : 'Vue d’ensemble'}
         </NavLink>
 
-        {links.map((link) => (
+        {primaryLinks.map((link) => (
           <NavLink key={link.key} to={link.to}>
             {link.label}
           </NavLink>
         ))}
+
+        {isDentist && secondaryLinks.length > 0 && (
+          <details className="dashboard-nav-group">
+            <summary>Autres modules accessibles</summary>
+            <div className="dashboard-nav-group-links">
+              {secondaryLinks.map((link) => (
+                <NavLink key={link.key} to={link.to}>
+                  {link.label}
+                </NavLink>
+              ))}
+            </div>
+          </details>
+        )}
       </nav>
     </aside>
   )

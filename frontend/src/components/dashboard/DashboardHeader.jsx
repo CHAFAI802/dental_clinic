@@ -14,7 +14,7 @@ function DashboardHeader() {
   return (
     <header className="dashboard-header">
       <div>
-        <h1>Dashboard</h1>
+        <h1>{user?.role === 'dentist' ? 'Espace médecin' : 'Dashboard'}</h1>
         {user && (
           <p className="dashboard-user">
             Connecté en tant que <strong>{user.first_name} {user.last_name}</strong> ({roleLabel || user.role})

@@ -40,16 +40,44 @@ class Prescription(TimestampedModel):
 
     patient = models.ForeignKey('patients.Patient', related_name='prescriptions', on_delete=models.CASCADE)
     dentist = models.ForeignKey('accounts.User', related_name='prescriptions', on_delete=models.PROTECT)
-    template = models.ForeignKey('prescriptions.PrescriptionTemplate', related_name='prescriptions', on_delete=models.PROTECT)
+    template = models.ForeignKey(
+        'prescriptions.PrescriptionTemplate',
+        related_name='prescriptions',
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+    )
+    document_template = models.ForeignKey(
+        'documents.DocumentTemplate',
+        related_name='prescriptions',
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+    )
     filled_data = models.JSONField(default=dict, blank=True)
     generated_at = models.DateTimeField(null=True, blank=True)
     status = models.CharField(max_length=32, choices=Status.choices)
     pdf_file = models.FileField(upload_to='prescriptions/', null=True, blank=True)
+    generated_file = models.FileField(
+        upload_to='prescriptions/generated/',
+        null=True,
+        blank=True,
+    )
     notes = models.TextField(blank=True)
 
 
     def clean(self):
         super().clean()
+
+        if bool(self.template_id) == bool(self.document_template_id):
+            raise ValidationError(
+                {
+                    "template": (
+                        "Une ordonnance doit utiliser soit un modèle de prescription "
+                        "soit un modèle de document."
+                    )
+                }
+            )
 
         # STATE-003: Status vocabulary enforcement
         valid_statuses = [choice.value for choice in self.Status]

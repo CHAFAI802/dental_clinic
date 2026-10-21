@@ -1,19 +1,51 @@
 from django.db import models
 from dental_clinic.common import TimestampedModel
 from django.core.exceptions import ValidationError
+from django.conf import settings
+from documents.services.docx import file_sha256
 
 
 class DocumentTemplate(TimestampedModel):
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True)
-    content = models.TextField()
-    variables = models.JSONField(default=list, blank=True)
-    default_sections = models.JSONField(default=list, blank=True)
+    file = models.FileField(upload_to="document_templates/", blank=True, null=True)
     is_active = models.BooleanField(default=True)
+    is_approved = models.BooleanField(default=False)
+    approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="approved_document_templates",
+    )
+    approved_at = models.DateTimeField(null=True, blank=True)
+    approved_file_sha256 = models.CharField(max_length=64, blank=True)
 
     def __str__(self):
         return self.name
 
+    def save(self, *args, **kwargs):
+        update_fields = kwargs.get("update_fields")
+        if self.pk and (update_fields is None or "file" in update_fields):
+            previous_hash = (
+                type(self).objects.filter(pk=self.pk)
+                .values_list("approved_file_sha256", flat=True)
+                .first()
+            )
+            current_hash = file_sha256(self.file) if self.file else ""
+            if self.is_approved and current_hash != (previous_hash or ""):
+                self.is_approved = False
+                self.approved_by = None
+                self.approved_at = None
+                self.approved_file_sha256 = ""
+                if update_fields is not None:
+                    kwargs["update_fields"] = set(update_fields) | {
+                        "is_approved",
+                        "approved_by",
+                        "approved_at",
+                        "approved_file_sha256",
+                    }
+        return super().save(*args, **kwargs)
 
 class DocumentSection(models.Model):
     template = models.ForeignKey('documents.DocumentTemplate', related_name='sections', on_delete=models.CASCADE)

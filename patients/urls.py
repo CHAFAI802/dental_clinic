@@ -4,6 +4,7 @@ from rest_framework.routers import DefaultRouter
 
 from .views import (
     AllergyViewSet,
+    MedicationViewSet,
     PractitionerPatientViewSet,
     ReceptionistPatientViewSet,
     MedicalHistoryViewSet,
@@ -33,6 +34,12 @@ router.register(
     "allergies",
     AllergyViewSet,
     basename="allergy",
+)
+
+router.register(
+    "medications",
+    MedicationViewSet,
+    basename="medication",
 )
 
 urlpatterns = [

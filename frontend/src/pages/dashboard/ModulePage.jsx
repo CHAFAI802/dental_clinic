@@ -2,6 +2,8 @@ import { useMemo } from 'react'
 import { useParams } from 'react-router-dom'
 import AppointmentsPage from './appointments/AppointmentsPage.jsx'
 import BillingPage from './billing/BillingPage.jsx'
+import DocumentsPage from './documents/DocumentsPage.jsx'
+import InventoryPage from './inventory/InventoryPage.jsx'
 import PatientsPage from './patients/PatientsPage.jsx'
 import { useAuth } from '../../context/AuthContext.jsx'
 
@@ -30,6 +32,16 @@ function ModulePage() {
   // Module Patients : liste + dossier (?patient=<appointment.patient>).
   if (moduleId === 'patients') {
     return <PatientsPage />
+  }
+
+  // Module Documents : gestion des modèles Word (.docx) de la clinique.
+  if (moduleId === 'document-templates') {
+    return <DocumentsPage />
+  }
+
+  // Module Inventaire : catalogue d’articles, mouvements et alertes de stock.
+  if (moduleId === 'inventory-items') {
+    return <InventoryPage />
   }
 
   // Le module Billing est rendu par son conteneur (onglets + section).

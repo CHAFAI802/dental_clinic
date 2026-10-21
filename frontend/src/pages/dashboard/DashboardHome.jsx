@@ -206,6 +206,7 @@ function ModuleIcon({ moduleId }) {
 
 function DashboardHome() {
   const { accessibleModules, user } = useAuth()
+  const isDentist = user?.role === 'dentist'
 
   // Paramétrage : entrée frontend dédiée, visible uniquement pour les rôles
   // autorisés sur les API concernées (IsAdministrator). Elle ne dépend pas
@@ -213,11 +214,17 @@ function DashboardHome() {
   const canManageSettings = ['super_admin', 'administrator'].includes(user?.role)
 
   const modules = Array.isArray(accessibleModules) ? accessibleModules : []
+  const orderedModules = isDentist
+    ? [...modules].sort((a, b) => {
+        const priority = { patients: 0, appointments: 1 }
+        return (priority[a.id] ?? 2) - (priority[b.id] ?? 2)
+      })
+    : modules
 
   if (modules.length === 0 && !canManageSettings) {
     return (
       <section>
-        <h2>Vue d’ensemble</h2>
+        <h2>{isDentist ? 'Espace médecin' : 'Vue d’ensemble'}</h2>
         <p>Aucun module accessible n’a été retourné par le backend.</p>
       </section>
     )
@@ -225,11 +232,15 @@ function DashboardHome() {
 
   return (
     <section>
-      <h2>Vue d’ensemble</h2>
-      <p>Modules accessibles.</p>
+      <h2>{isDentist ? 'Espace médecin' : 'Vue d’ensemble'}</h2>
+      <p>
+        {isDentist
+          ? 'Accédez rapidement aux patients et aux rendez-vous. Les autres modules autorisés restent disponibles dans la navigation.'
+          : 'Modules accessibles.'}
+      </p>
 
       <div className="dashboard-grid">
-        {modules.map((module) => (
+        {orderedModules.map((module) => (
           <Link
             key={module.id}
             to={routeForModule(module)}

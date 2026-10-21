@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Patient,MedicalHistory, Allergy
+from .models import Patient,MedicalHistory, Allergy, Medication
 
 
 class ReceptionistPatientSerializer(serializers.ModelSerializer):
@@ -126,3 +126,40 @@ class AllergySerializer(serializers.ModelSerializer):
             'notes',
         ]
         read_only_fields = ['patient']
+
+class MedicationSerializer(serializers.ModelSerializer):
+    """Traitement médicamenteux enregistré au dossier du patient.
+
+    Champs strictement limités au modèle Medication (aucun champ inventé).
+    `patient` vient du paramètre `?patient=` et `prescribed_by` du
+    dentiste connecté : les deux sont fixés par le serveur, jamais reçus du
+    client. Les identifiants produits ici sont exactement ceux attendus par
+    `PrescriptionGenerationSerializer.medications` (liste d'IDs de
+    médicaments appartenant au patient et prescrits par le dentiste).
+    """
+    patient = serializers.PrimaryKeyRelatedField(read_only=True)
+    prescribed_by = serializers.PrimaryKeyRelatedField(read_only=True)
+
+    class Meta:
+        model = Medication
+        fields = [
+            'id',
+            'created_at',
+            'updated_at',
+            'patient',
+            'name',
+            'dosage',
+            'frequency',
+            'route',
+            'start_date',
+            'end_date',
+            'prescribed_by',
+            'notes',
+        ]
+        read_only_fields = [
+            'id',
+            'created_at',
+            'updated_at',
+            'patient',
+            'prescribed_by',
+        ]

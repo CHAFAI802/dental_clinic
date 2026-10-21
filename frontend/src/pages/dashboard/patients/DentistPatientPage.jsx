@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { apiGet, apiPatch, apiPost } from '../../../api/client.js'
+import PrescriptionSection from './PrescriptionSection.jsx'
 
 function formatValue(value, fallback = '-') {
   if (value === null || value === undefined || value === '') return fallback
@@ -40,7 +41,16 @@ function formatPrestationOption(prestation) {
   return prestation.label || `Prestation #${prestation.id}`
 }
 
+const PATIENT_WORKSPACES = [
+  { id: 'overview', label: 'Vue d’ensemble' },
+  { id: 'allergies', label: 'Allergies' },
+  { id: 'history', label: 'Antécédents' },
+  { id: 'consultations', label: 'Consultations / actes' },
+  { id: 'prescriptions', label: 'Ordonnances' },
+]
+
 function DentistPatientPage({ patientId, onClose }) {
+  const [activeWorkspace, setActiveWorkspace] = useState('overview')
   const [patient, setPatient] = useState(null)
   const [loadedPatientId, setLoadedPatientId] = useState(null)
   const [allergies, setAllergies] = useState([])
@@ -97,6 +107,8 @@ function DentistPatientPage({ patientId, onClose }) {
   })
 
   useEffect(() => {
+    setActiveWorkspace('overview')
+
     if (!patientId) {
       setPatient(null)
       setForm({
@@ -566,6 +578,64 @@ function DentistPatientPage({ patientId, onClose }) {
           </div>
         </div>
 
+        <div className="patient-workspace-summary" aria-label="Résumé clinique">
+          <button
+            type="button"
+            className="patient-summary-item"
+            onClick={() => setActiveWorkspace('allergies')}
+          >
+            <span className="patient-summary-value">
+              {currentAllergiesLoading ? '…' : currentAllergies.length}
+            </span>
+            <span>Allergies · voir le dossier</span>
+          </button>
+          <button
+            type="button"
+            className="patient-summary-item"
+            onClick={() => setActiveWorkspace('history')}
+          >
+            <span className="patient-summary-value">
+              {currentHistoriesLoading ? '…' : currentHistories.length}
+            </span>
+            <span>Antécédents · voir le dossier</span>
+          </button>
+          <button
+            type="button"
+            className="patient-summary-item"
+            onClick={() => setActiveWorkspace('consultations')}
+          >
+            <span className="patient-summary-value">{confirmedAppointments.length}</span>
+            <span>Rendez-vous confirmés · actes</span>
+          </button>
+          <button
+            type="button"
+            className="patient-summary-item"
+            onClick={() => setActiveWorkspace('prescriptions')}
+          >
+            <span className="patient-summary-value">+</span>
+            <span>Nouvelle ordonnance</span>
+          </button>
+        </div>
+
+        <nav className="patient-workspace-nav" aria-label="Rubriques du dossier patient">
+          {PATIENT_WORKSPACES.map((workspace) => (
+            <button
+              key={workspace.id}
+              type="button"
+              className={`patient-workspace-link${activeWorkspace === workspace.id ? ' is-active' : ''}`}
+              aria-current={activeWorkspace === workspace.id ? 'page' : undefined}
+              onClick={() => setActiveWorkspace(workspace.id)}
+            >
+              {workspace.label}
+            </button>
+          ))}
+        </nav>
+
+        <section
+          className="patient-workspace-panel"
+          aria-label="Vue d’ensemble du patient"
+          hidden={activeWorkspace !== 'overview'}
+        >
         {success && <p className="success-text">{success}</p>}
         {patientError && patient && <p className="error-text">{patientError}</p>}
 
@@ -698,163 +768,169 @@ function DentistPatientPage({ patientId, onClose }) {
             {isSaving ? 'Enregistrement…' : 'Enregistrer'}
           </button>
         </form>
+        </section>
 
-        <hr className="divider" />
+        <section
+          className="patient-workspace-panel"
+          aria-label="Allergies du patient"
+          hidden={activeWorkspace !== 'allergies'}
+        >
+          <h4>Allergies</h4>
+          {currentAllergiesLoading ? (
+            <p className="muted" role="status">Chargement des allergies…</p>
+          ) : currentAllergiesError ? (
+            <p className="error-text">{currentAllergiesError}</p>
+          ) : currentAllergies.length === 0 ? (
+            <p className="muted">Aucune allergie connue.</p>
+          ) : (
+            <ul className="patient-record-list">
+              {currentAllergies.map((item) => (
+                <li key={item.id}>
+                  <strong>{item.substance || 'Allergène'}</strong>
+                  {item.reaction ? ` · ${item.reaction}` : ''}
+                  {item.severity ? ` · ${item.severity}` : ''}
+                  {item.notes ? ` · ${item.notes}` : ''}
+                </li>
+              ))}
+            </ul>
+          )}
 
-        <h4>Antécédents et allergies</h4>
-
-        <div className="patient-medical-records">
-          <section>
-            <h5>Antécédents médicaux</h5>
-            {currentHistoriesLoading ? (
-              <p className="muted" role="status">Chargement des antécédents…</p>
-            ) : currentHistoriesError ? (
-              <p className="error-text">{currentHistoriesError}</p>
-            ) : currentHistories.length === 0 ? (
-              <p className="muted">Aucun antécédent médical.</p>
-            ) : (
-              <ul>
-                {currentHistories.map((item) => (
-                  <li key={item.id}>
-                    <strong>{item.condition || 'Antécédent'}</strong>
-                    {item.diagnosis_date ? ` · ${item.diagnosis_date}` : ''}
-                    {item.status ? ` · ${item.status}` : ''}
-                    {item.is_chronic && ' · Chronique'}
-                    {item.is_acute && ' · Aigu'}
-                    {item.notes ? ` · ${item.notes}` : ''}
-                  </li>
-                ))}
-              </ul>
-            )}
-
-            <form className="form-shell patient-record-form" onSubmit={handleCreateHistory}>
-              <h6>Ajouter un antécédent</h6>
-              <div className="form-row">
-                <label>
-                  Condition
-                  <input
-                    required
-                    value={historyForm.condition}
-                    onChange={(event) => setHistoryForm((current) => ({ ...current, condition: event.target.value }))}
-                  />
-                </label>
-                <label>
-                  Date du diagnostic
-                  <input
-                    type="date"
-                    value={historyForm.diagnosis_date}
-                    onChange={(event) => setHistoryForm((current) => ({ ...current, diagnosis_date: event.target.value }))}
-                  />
-                </label>
-                <label>
-                  Statut
-                  <input
-                    value={historyForm.status}
-                    onChange={(event) => setHistoryForm((current) => ({ ...current, status: event.target.value }))}
-                  />
-                </label>
-              </div>
+          <form className="form-shell patient-record-form" onSubmit={handleCreateAllergy}>
+            <h6>Ajouter une allergie</h6>
+            <div className="form-row">
               <label>
-                Notes
-                <textarea
-                  rows={2}
-                  value={historyForm.notes}
-                  onChange={(event) => setHistoryForm((current) => ({ ...current, notes: event.target.value }))}
+                Substance
+                <input
+                  required
+                  value={allergyForm.substance}
+                  onChange={(event) => setAllergyForm((current) => ({ ...current, substance: event.target.value }))}
                 />
               </label>
-              <div className="form-row">
-                <label className="checkbox-field">
-                  <input
-                    type="checkbox"
-                    checked={historyForm.is_chronic}
-                    onChange={(event) => setHistoryForm((current) => ({ ...current, is_chronic: event.target.checked }))}
-                  />
-                  Chronique
-                </label>
-                <label className="checkbox-field">
-                  <input
-                    type="checkbox"
-                    checked={historyForm.is_acute}
-                    onChange={(event) => setHistoryForm((current) => ({ ...current, is_acute: event.target.checked }))}
-                  />
-                  Aigu
-                </label>
-              </div>
-              {historyCreateError && <p className="error-text">{historyCreateError}</p>}
-              {historyCreateSuccess && <p className="success-text">{historyCreateSuccess}</p>}
-              <button type="submit" disabled={isCreatingHistory}>
-                {isCreatingHistory ? 'Ajout…' : 'Ajouter l’antécédent'}
-              </button>
-            </form>
-          </section>
-
-          <section>
-            <h5>Allergies</h5>
-            {currentAllergiesLoading ? (
-              <p className="muted" role="status">Chargement des allergies…</p>
-            ) : currentAllergiesError ? (
-              <p className="error-text">{currentAllergiesError}</p>
-            ) : currentAllergies.length === 0 ? (
-              <p className="muted">Aucune allergie connue.</p>
-            ) : (
-              <ul>
-                {currentAllergies.map((item) => (
-                  <li key={item.id}>
-                    <strong>{item.substance || 'Allergène'}</strong>
-                    {item.reaction ? ` · ${item.reaction}` : ''}
-                    {item.severity ? ` · ${item.severity}` : ''}
-                    {item.notes ? ` · ${item.notes}` : ''}
-                  </li>
-                ))}
-              </ul>
-            )}
-
-            <form className="form-shell patient-record-form" onSubmit={handleCreateAllergy}>
-              <h6>Ajouter une allergie</h6>
-              <div className="form-row">
-                <label>
-                  Substance
-                  <input
-                    required
-                    value={allergyForm.substance}
-                    onChange={(event) => setAllergyForm((current) => ({ ...current, substance: event.target.value }))}
-                  />
-                </label>
-                <label>
-                  Réaction
-                  <input
-                    value={allergyForm.reaction}
-                    onChange={(event) => setAllergyForm((current) => ({ ...current, reaction: event.target.value }))}
-                  />
-                </label>
-                <label>
-                  Sévérité
-                  <input
-                    value={allergyForm.severity}
-                    onChange={(event) => setAllergyForm((current) => ({ ...current, severity: event.target.value }))}
-                  />
-                </label>
-              </div>
               <label>
-                Notes
-                <textarea
-                  rows={2}
-                  value={allergyForm.notes}
-                  onChange={(event) => setAllergyForm((current) => ({ ...current, notes: event.target.value }))}
+                Réaction
+                <input
+                  value={allergyForm.reaction}
+                  onChange={(event) => setAllergyForm((current) => ({ ...current, reaction: event.target.value }))}
                 />
               </label>
-              {allergyCreateError && <p className="error-text">{allergyCreateError}</p>}
-              {allergyCreateSuccess && <p className="success-text">{allergyCreateSuccess}</p>}
-              <button type="submit" disabled={isCreatingAllergy}>
-                {isCreatingAllergy ? 'Ajout…' : 'Ajouter l’allergie'}
-              </button>
-            </form>
-          </section>
-        </div>
+              <label>
+                Sévérité
+                <input
+                  value={allergyForm.severity}
+                  onChange={(event) => setAllergyForm((current) => ({ ...current, severity: event.target.value }))}
+                />
+              </label>
+            </div>
+            <label>
+              Notes
+              <textarea
+                rows={2}
+                value={allergyForm.notes}
+                onChange={(event) => setAllergyForm((current) => ({ ...current, notes: event.target.value }))}
+              />
+            </label>
+            {allergyCreateError && <p className="error-text">{allergyCreateError}</p>}
+            {allergyCreateSuccess && <p className="success-text">{allergyCreateSuccess}</p>}
+            <button type="submit" disabled={isCreatingAllergy}>
+              {isCreatingAllergy ? 'Ajout…' : 'Ajouter l’allergie'}
+            </button>
+          </form>
+        </section>
 
-        <hr className="divider" />
+        <section
+          className="patient-workspace-panel"
+          aria-label="Antécédents médicaux du patient"
+          hidden={activeWorkspace !== 'history'}
+        >
+          <h4>Antécédents médicaux</h4>
+          {currentHistoriesLoading ? (
+            <p className="muted" role="status">Chargement des antécédents…</p>
+          ) : currentHistoriesError ? (
+            <p className="error-text">{currentHistoriesError}</p>
+          ) : currentHistories.length === 0 ? (
+            <p className="muted">Aucun antécédent médical.</p>
+          ) : (
+            <ul className="patient-record-list">
+              {currentHistories.map((item) => (
+                <li key={item.id}>
+                  <strong>{item.condition || 'Antécédent'}</strong>
+                  {item.diagnosis_date ? ` · ${item.diagnosis_date}` : ''}
+                  {item.status ? ` · ${item.status}` : ''}
+                  {item.is_chronic && ' · Chronique'}
+                  {item.is_acute && ' · Aigu'}
+                  {item.notes ? ` · ${item.notes}` : ''}
+                </li>
+              ))}
+            </ul>
+          )}
 
-        <h4>Prestations / Actes</h4>
+          <form className="form-shell patient-record-form" onSubmit={handleCreateHistory}>
+            <h6>Ajouter un antécédent</h6>
+            <div className="form-row">
+              <label>
+                Condition
+                <input
+                  required
+                  value={historyForm.condition}
+                  onChange={(event) => setHistoryForm((current) => ({ ...current, condition: event.target.value }))}
+                />
+              </label>
+              <label>
+                Date du diagnostic
+                <input
+                  type="date"
+                  value={historyForm.diagnosis_date}
+                  onChange={(event) => setHistoryForm((current) => ({ ...current, diagnosis_date: event.target.value }))}
+                />
+              </label>
+              <label>
+                Statut
+                <input
+                  value={historyForm.status}
+                  onChange={(event) => setHistoryForm((current) => ({ ...current, status: event.target.value }))}
+                />
+              </label>
+            </div>
+            <label>
+              Notes
+              <textarea
+                rows={2}
+                value={historyForm.notes}
+                onChange={(event) => setHistoryForm((current) => ({ ...current, notes: event.target.value }))}
+              />
+            </label>
+            <div className="form-row">
+              <label className="checkbox-field">
+                <input
+                  type="checkbox"
+                  checked={historyForm.is_chronic}
+                  onChange={(event) => setHistoryForm((current) => ({ ...current, is_chronic: event.target.checked }))}
+                />
+                Chronique
+              </label>
+              <label className="checkbox-field">
+                <input
+                  type="checkbox"
+                  checked={historyForm.is_acute}
+                  onChange={(event) => setHistoryForm((current) => ({ ...current, is_acute: event.target.checked }))}
+                />
+                Aigu
+              </label>
+            </div>
+            {historyCreateError && <p className="error-text">{historyCreateError}</p>}
+            {historyCreateSuccess && <p className="success-text">{historyCreateSuccess}</p>}
+            <button type="submit" disabled={isCreatingHistory}>
+              {isCreatingHistory ? 'Ajout…' : 'Ajouter l’antécédent'}
+            </button>
+          </form>
+        </section>
+
+        <section
+          className="patient-workspace-panel"
+          aria-label="Consultations et actes"
+          hidden={activeWorkspace !== 'consultations'}
+        >
+          <h4>Consultations / actes</h4>
 
         <form className="form-shell patient-record-form" onSubmit={handleCreateTreatment}>
           {appointmentsError && <p className="error-text">{appointmentsError}</p>}
@@ -939,6 +1015,20 @@ function DentistPatientPage({ patientId, onClose }) {
             {isCreatingTreatment ? 'Ajout…' : 'Ajouter la prestation'}
           </button>
         </form>
+        </section>
+
+        <section
+          className="patient-workspace-panel"
+          aria-label="Ordonnances du patient"
+          hidden={activeWorkspace !== 'prescriptions'}
+        >
+          <h4>Ordonnances</h4>
+          <PrescriptionSection
+            key={`prescription-${patientId}`}
+            patientId={patientId}
+            patient={patient}
+          />
+        </section>
       </div>
     </section>
   )

@@ -3,9 +3,12 @@ from rest_framework.routers import DefaultRouter
 from .views import PrescriptionViewSet, PrescriptionTemplateViewSet
 
 router = DefaultRouter()
-router.register('prescriptions', PrescriptionViewSet)
+router.register(
+    'prescriptions',
+    PrescriptionViewSet,
+    basename='prescription',
+)
 router.register('prescription-templates', PrescriptionTemplateViewSet)
-
 urlpatterns = [
     path('', include(router.urls)),
 ]
