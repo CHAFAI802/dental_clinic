@@ -1,7 +1,6 @@
 /*
  * Zone de paramétrage du site (/settings/site).
- * Interface frontend-only : les valeurs sont stockées localement
- * le temps que l'API de configuration du site existe.
+ * Interface d’administration de la configuration du site.
  */
 
 .settings-page {
@@ -122,6 +121,89 @@
 .settings-field {
   display: grid;
   gap: var(--space-2);
+}
+
+.settings-image-control {
+  display: grid;
+  align-content: start;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.settings-image-uploader {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.settings-image-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+
+.settings-image-dropzone {
+  display: grid;
+  place-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 9rem;
+  padding: var(--space-3);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-background);
+  color: var(--color-text-muted);
+  text-align: center;
+  cursor: pointer;
+}
+
+.settings-image-dropzone:hover,
+.settings-image-dropzone.is-dragging {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+}
+
+.settings-image-dropzone:focus-visible {
+  outline: 3px solid var(--color-secondary-soft);
+  outline-offset: 2px;
+}
+
+.settings-image-dropzone:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+
+.settings-image-preview {
+  display: block;
+  width: 100%;
+  height: 6rem;
+  object-fit: contain;
+}
+
+.settings-image-empty {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 6rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  font-size: var(--font-size-sm);
+}
+
+.settings-image-prompt {
+  font-size: var(--font-size-xs);
+}
+
+.settings-image-uploader .error-text,
+.settings-image-uploader .success-text {
+  margin: 0;
+  font-size: var(--font-size-xs);
 }
 
 .settings-field label {

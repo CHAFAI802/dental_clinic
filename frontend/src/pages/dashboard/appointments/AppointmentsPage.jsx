@@ -4,6 +4,11 @@ import { useNavigate } from 'react-router-dom'
 import { apiGet, apiPost } from '../../../api/client.js'
 import { useAuth } from '../../../context/AuthContext.jsx'
 import { getPatientDossierParams } from '../patientNavigation.js'
+import {
+  getAppointmentToneClass,
+  paginateAppointments,
+  sortAppointmentsDesc,
+} from './helpers.js'
 
 function normalizeSearch(value) {
   return String(value ?? '')
@@ -19,8 +24,19 @@ function AppointmentsPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
   const [validatingId, setValidatingId] = useState(null)
   const [deletingId, setDeletingId] = useState(null)
+
+  // L'heure courante pilote la teinte « rendez-vous raté » (confirmed dont
+  // end_at est passé). Un rafraîchissement périodique évite qu'un
+  // rendez-vous change de catégorie sans rechargement de page.
+  const [now, setNow] = useState(() => Date.now())
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 60000)
+    return () => window.clearInterval(timer)
+  }, [])
 
   useEffect(() => {
     let isMounted = true
@@ -88,6 +104,13 @@ function AppointmentsPage() {
       normalizeSearch(value).includes(normalizeSearch(search.trim())),
     )
   })
+
+  // Liste : ordre décroissant par start_at (les plus récents d'abord),
+  // puis pagination frontend (l'API renvoie un tableau non paginé).
+  // Le calendrier n'existe pas : la teinte s'applique aux lignes de ce tableau.
+  const sortedAppointments = sortAppointmentsDesc(filteredAppointments)
+  const { items: displayedAppointments, currentPage, totalPages } =
+    paginateAppointments(sortedAppointments, page)
 
   const validateAppointment = async (appointmentId) => {
     setValidatingId(appointmentId)
@@ -173,13 +196,16 @@ function AppointmentsPage() {
         <input
           type="search"
           value={search}
-          onChange={(event) => setSearch(event.target.value)}
+          onChange={(event) => {
+            setSearch(event.target.value)
+            setPage(1)
+          }}
           placeholder="Rechercher un rendez-vous par patient, code ou praticien..."
           aria-label="Rechercher un rendez-vous par patient, code ou praticien"
         />
       </div>
 
-      {filteredAppointments.length === 0 ? (
+      {sortedAppointments.length === 0 ? (
         <p>
           {search.trim() ? 'Aucun rendez-vous correspondant.' : 'Aucun rendez-vous.'}
         </p>
@@ -200,8 +226,11 @@ function AppointmentsPage() {
             </thead>
 
             <tbody>
-              {filteredAppointments.map((appointment) => (
-                <tr key={appointment.id}>
+              {displayedAppointments.map((appointment) => (
+                <tr
+                  key={appointment.id}
+                  className={getAppointmentToneClass(appointment, now)}
+                >
                   <td>{appointment.id}</td>
                   <td>{appointment.start_at}</td>
                   <td>{appointment.end_at}</td>
@@ -261,6 +290,32 @@ function AppointmentsPage() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {sortedAppointments.length > 0 && (
+        <nav className="appointments-pagination" aria-label="Pagination des rendez-vous">
+          <button
+            type="button"
+            className="btn btn-outline btn-sm"
+            onClick={() => setPage(currentPage - 1)}
+            disabled={currentPage <= 1}
+          >
+            Page précédente
+          </button>
+
+          <span className="appointments-pagination-status" aria-live="polite">
+            Page {currentPage} / {totalPages}
+          </span>
+
+          <button
+            type="button"
+            className="btn btn-outline btn-sm"
+            onClick={() => setPage(currentPage + 1)}
+            disabled={currentPage >= totalPages}
+          >
+            Page suivante
+          </button>
+        </nav>
       )}
     </section>
   )

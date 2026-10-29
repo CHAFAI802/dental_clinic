@@ -1,8 +1,8 @@
 from rest_framework import serializers
-
+from django.utils import timezone
 from patients.models import Patient
 from .models import Appointment, Room
-from django.core.exceptions import ValidationError as DjangoValidationError 
+from django.core.exceptions import ValidationError as DjangoValidationError
 from appointments.services.appointmentstatus import AppointmentRequestService
 
 class RoomSerializer(serializers.ModelSerializer):
@@ -123,27 +123,36 @@ class AppointmentRequestSerializer(serializers.Serializer):
     reason = serializers.CharField(required=False, allow_blank=True)
 
     def validate(self, attrs):
+        start_at = attrs.get("start_at")
+        now = timezone.now()
+
+        if start_at is not None and start_at <= now:
+            raise serializers.ValidationError({
+                "start_at":(
+                    "impossible de demander un rendez vous à une date "
+                    "ou à une heure déja passé "
+                )
+            })
         if not attrs.get("first_request"):
             patient_code = attrs.get("patient_code", "").strip()
 
-            if not patient_code:
-                raise serializers.ValidationError(
-                    {"patient_code": "Veuillez fournir votre code patient."}
-                )
+            # Le code patient est prioritaire lorsqu'il est fourni.
+            # Sans code, le service recherche une correspondance unique
+            # à partir des informations démographiques reçues.
+            if patient_code:
+                try:
+                    patient = Patient.objects.get(patient_code=patient_code)
+                except Patient.DoesNotExist:
+                    raise serializers.ValidationError(
+                        {"patient_code": "Code patient invalide."}
+                    )
 
-            try:
-                patient = Patient.objects.get(patient_code=patient_code)
-            except Patient.DoesNotExist:
-                raise serializers.ValidationError(
-                    {"patient_code": "Code patient invalide."}
-                )
-
-            attrs["first_name"] = patient.first_name
-            attrs["last_name"] = patient.last_name
-            attrs["email"] = patient.email
-            attrs["phone"] = patient.phone
-            attrs["birthdate"] = patient.birthdate
-            attrs["gender"] = patient.gender
+                attrs["first_name"] = patient.first_name
+                attrs["last_name"] = patient.last_name
+                attrs["email"] = patient.email
+                attrs["phone"] = patient.phone
+                attrs["birthdate"] = patient.birthdate
+                attrs["gender"] = patient.gender
 
         return attrs
 

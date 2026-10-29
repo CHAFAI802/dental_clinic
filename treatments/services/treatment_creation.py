@@ -1,6 +1,6 @@
 from django.core.exceptions import ValidationError
 from django.db import transaction
-
+from django.utils import timezone
 from appointments.models import Appointment
 from appointments.services.appointmentstatus import complete_appointment_from_treatment
 from billing.models import InvoiceLine
@@ -24,6 +24,17 @@ class TreatmentCreationService:
                 "appointment": (
                     "Le rendez-vous doit être confirmé avant "
                     "d'enregistrer le traitement."
+                )
+            })
+
+        now = timezone.now()
+
+        if now < appointment.start_at or now >= appointment.end_at:
+            raise ValidationError({
+                "appointment": (
+                    "Impossible d'enregistrer cette prestation : "
+                    "le traitement doit être enregistré pendant "
+                    "l'intervalle du rendez-vous."
                 )
             })
 

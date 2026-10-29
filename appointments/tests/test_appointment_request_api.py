@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from django.test import TestCase
 from django.urls import reverse
@@ -25,12 +25,8 @@ class AppointmentRequestAPITests(TestCase):
 
         self.url = reverse("appointment-request")
 
-        self.start_at = timezone.make_aware(
-            datetime(2026, 9, 22, 10, 0)
-        )
-        self.end_at = timezone.make_aware(
-            datetime(2026, 9, 22, 10, 30)
-        )
+        self.start_at = timezone.now() + timedelta(days=7)
+        self.end_at = self.start_at + timedelta(minutes=30)
 
     def test_first_request_creates_patient_and_pending_appointment(self):
         response = self.client.post(

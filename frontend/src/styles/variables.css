@@ -33,8 +33,9 @@
   --color-border-strong: #cbd5e1;
 
   /* --- États --- */
-  --color-success: #15803d;
-  --color-danger: #b91c1c;
+  --color-success: #034e1f;
+  --color-success-soft: #e9f5ec;
+  --color-danger: #a10f0f;
   --color-danger-soft: #fdecec;
 
   /* --- Typographie --- */

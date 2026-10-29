@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from accounts.models import User
 from django.core.exceptions import ValidationError as DjangoValidationError
 from .models import InventoryCategory, Supplier, InventoryFamily, Unit, InventoryItem, StockEntry, StockExit, StockExitAllocation, StockAlert, StockDestruction,StockDestructionLine
 
@@ -84,6 +85,31 @@ class InventoryItemSerializer(serializers.ModelSerializer):
             "sku",
             "stock_quantity",
         ]
+
+    def validate(self, attrs):
+
+        if "reorder_point" in attrs:
+            request = self.context.get("request")
+
+            # Hors requête HTTP, ne pas imposer de contrôle de rôle.
+            if request is not None:
+                user = getattr(request, "user", None)
+
+                allowed_roles = (
+                    User.Role.SUPER_ADMIN,
+                    User.Role.ADMINISTRATOR,
+                )
+
+                if getattr(user, "role", None) not in allowed_roles:
+                    raise serializers.ValidationError({
+                        "reorder_point": (
+                            "Seuls le super administrateur et "
+                            "l'administrateur peuvent modifier le seuil "
+                            "de réapprovisionnement."
+                        )
+                    })
+
+        return attrs
 
 class StockEntrySerializer(serializers.ModelSerializer):
     class Meta:

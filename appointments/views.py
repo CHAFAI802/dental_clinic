@@ -10,7 +10,7 @@ from notifications.services.appointment_confirmed_notification import (
 )
 
 from accounts.permissions import IsAppointmentManager
-
+from django.utils import timezone
 from .models import Appointment, Room
 from accounts.models import User
 from .services.appointmentstatus import get_available_slots
@@ -46,6 +46,17 @@ class AppointmentViewSet(viewsets.ModelViewSet):
             )
 
         appointment = self.get_object()
+
+        if appointment.start_at <= timezone.now():
+            return Response(
+                {
+                    "detail": (
+                        "Impossible de confirmer ce rendez-vous : "
+                        "la date ou l'heure du rendez-vous est passée."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         if appointment.status != Appointment.Status.PENDING:
             return Response(

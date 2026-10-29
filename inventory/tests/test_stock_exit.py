@@ -429,7 +429,7 @@ class StockExitSelectionModeTests(TestCase):
             usage_type="soin",
             selection_mode=StockExit.SelectionMode.MANUAL,
             manual_allocations=[
-                {"stock_entry": fresh_lot.pk, "quantity": Decimal("4")},
+                {"stock_entry": fresh_lot.pk, "quantity": 4},
             ],
         )
         exit_instance.apply()
@@ -440,10 +440,14 @@ class StockExitSelectionModeTests(TestCase):
 
         self.assertEqual(allocations.count(), 1)
         self.assertEqual(allocations.first().quantity, Decimal("4.00"))
+
+        fresh_lot.refresh_from_db()
         self.assertEqual(fresh_lot.remaining_quantity, Decimal("6.00"))
 
         item = InventoryItem.objects.get(pk=self.item.pk)
-        self.assertEqual(item.stock_quantity, Decimal("6.00"))
+        # setUp() crée un premier lot de 10, puis le test en ajoute un
+        # second de 10 : le stock global passe donc de 20 à 16.
+        self.assertEqual(item.stock_quantity, Decimal("16.00"))
 
 
     def test_default_selection_mode_is_automatic(self):

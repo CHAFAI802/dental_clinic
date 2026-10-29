@@ -235,3 +235,11 @@ tags
 TAGS
 .venv.bak
 .env.bak
+
+#==========================================
+#browser_bridge
+#==========================================
+.browser_bridge
+
+# Browser Bridge est un dépôt indépendant.
+/browser_bridge/

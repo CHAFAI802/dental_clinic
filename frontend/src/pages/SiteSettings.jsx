@@ -1,9 +1,179 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import Icon from '../components/common/Icon.jsx'
 import { useSiteConfig } from '../context/SiteConfigContext.jsx'
 import { SECTION_LABELS, MEDIA_SECTIONS } from '../config/siteConfig.js'
+import { apiGet, apiPatch, apiPost } from '../api/client.js'
+
+const MAX_IMAGE_SIZE = 8 * 1024 * 1024
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+const ALLOWED_IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp']
+
+async function findSiteImageByKey(key) {
+  let pagePath = '/site-images/'
+  const visitedPages = new Set()
+
+  while (pagePath && !visitedPages.has(pagePath)) {
+    visitedPages.add(pagePath)
+    const payload = await apiGet(pagePath)
+    const results = Array.isArray(payload) ? payload : payload?.results
+
+    if (!Array.isArray(results)) {
+      throw new Error('La liste des images renvoyée par le serveur est invalide.')
+    }
+
+    const existing = results.find((image) => image.key === key)
+    if (existing) return existing
+
+    if (!payload?.next) return null
+
+    const nextUrl = new URL(
+      payload.next,
+      new URL('/api/site-images/', window.location.origin),
+    )
+    const apiPrefix = '/api'
+    const path = nextUrl.pathname.startsWith(`${apiPrefix}/`)
+      ? nextUrl.pathname.slice(apiPrefix.length)
+      : nextUrl.pathname
+    pagePath = `${path}${nextUrl.search}`
+  }
+
+  if (pagePath) {
+    throw new Error('La pagination des images renvoyée par le serveur est invalide.')
+  }
+
+  return null
+}
+
+function SiteImageUploader({ label, storageKey, value, alt, onUploaded }) {
+  const inputRef = useRef(null)
+  const [previewUrl, setPreviewUrl] = useState('')
+  const [previewError, setPreviewError] = useState(false)
+  const [isDragging, setIsDragging] = useState(false)
+  const [isUploading, setIsUploading] = useState(false)
+  const [message, setMessage] = useState('')
+  const [messageIsError, setMessageIsError] = useState(false)
+  const displayedUrl = previewUrl || value || ''
+
+  useEffect(() => () => {
+    if (previewUrl) URL.revokeObjectURL(previewUrl)
+  }, [previewUrl])
+
+  useEffect(() => {
+    setPreviewError(false)
+  }, [displayedUrl])
+
+  const uploadFile = async (file) => {
+    if (!file) return
+
+    const extension = `.${file.name.split('.').pop()?.toLowerCase()}`
+    const hasAllowedType = ALLOWED_IMAGE_TYPES.includes(file.type)
+    const hasAllowedExtension = ALLOWED_IMAGE_EXTENSIONS.includes(extension)
+    if (!hasAllowedType && !(file.type === '' && hasAllowedExtension)) {
+      setMessage('Format non accepté. Choisissez une image JPEG, PNG ou WebP.')
+      setMessageIsError(true)
+      return
+    }
+    if (file.size > MAX_IMAGE_SIZE) {
+      setMessage('L’image dépasse la taille maximale de 8 Mo.')
+      setMessageIsError(true)
+      return
+    }
+
+    setPreviewUrl(URL.createObjectURL(file))
+    setPreviewError(false)
+    setMessage('')
+    setIsUploading(true)
+
+    try {
+      const formData = new FormData()
+      formData.append('key', storageKey)
+      formData.append('image', file)
+      formData.append('alt', alt || label)
+
+      const existing = await findSiteImageByKey(storageKey)
+      const savedImage = existing
+        ? await apiPatch(`/site-images/${existing.id}/`, formData)
+        : await apiPost('/site-images/', formData)
+
+      if (!savedImage?.url) {
+        throw new Error('Le serveur n’a pas renvoyé l’URL de l’image.')
+      }
+
+      onUploaded(savedImage.url)
+      setPreviewUrl('')
+      setMessage('Image téléversée. Enregistrez la configuration pour publier ce changement.')
+      setMessageIsError(false)
+    } catch (error) {
+      setPreviewUrl('')
+      setMessage(error?.message || 'Impossible de téléverser cette image.')
+      setMessageIsError(true)
+    } finally {
+      setIsUploading(false)
+    }
+  }
+
+  const handleFiles = (files) => {
+    if (!isUploading && files?.[0]) uploadFile(files[0])
+  }
+
+  return (
+    <div className="settings-image-uploader">
+      <input
+        ref={inputRef}
+        className="settings-image-input"
+        type="file"
+        accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
+        disabled={isUploading}
+        onChange={(event) => {
+          handleFiles(event.target.files)
+          event.target.value = ''
+        }}
+        aria-label={`Choisir une image pour ${label}`}
+      />
+      <button
+        type="button"
+        className={`settings-image-dropzone${isDragging ? ' is-dragging' : ''}`}
+        disabled={isUploading}
+        onClick={() => inputRef.current?.click()}
+        onDragOver={(event) => {
+          event.preventDefault()
+          if (!isUploading) setIsDragging(true)
+        }}
+        onDragLeave={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget)) setIsDragging(false)
+        }}
+        onDrop={(event) => {
+          event.preventDefault()
+          setIsDragging(false)
+          handleFiles(event.dataTransfer.files)
+        }}
+      >
+        {displayedUrl && !previewError ? (
+          <img
+            className="settings-image-preview"
+            src={displayedUrl}
+            alt={alt || `Aperçu : ${label}`}
+            onError={() => setPreviewError(true)}
+          />
+        ) : (
+          <span className="settings-image-empty">
+            {previewError ? 'Aperçu indisponible' : 'Aucune image sélectionnée'}
+          </span>
+        )}
+        <span className="settings-image-prompt">
+          {isUploading ? 'Téléversement…' : displayedUrl ? 'Déposer ou cliquer pour remplacer' : 'Déposer une image ou cliquer pour choisir'}
+        </span>
+      </button>
+      {message && (
+        <p className={messageIsError ? 'error-text' : 'success-text'} role={messageIsError ? 'alert' : 'status'}>
+          {message}
+        </p>
+      )}
+    </div>
+  )
+}
 
 const PANELS = [
   { id: 'identity', label: 'Identité & thème' },
@@ -119,10 +289,8 @@ function ListEditor({ items = [], columns, onChange, addLabel = '+ Ajouter un é
 /**
  * Zone de paramétrage du site (/settings/site).
  *
- * Frontend uniquement : les modifications sont appliquées en direct puis
- * stockées dans le navigateur. Quand une API d'administration du site
- * existera, `saveConfig`/`loadSiteConfig` basculeront sur cette API sans
- * toucher aux composants ni au backend actuel.
+ * Les modifications sont appliquées en direct puis enregistrées sur le
+ * serveur avec `saveConfig`. Les images sont téléversées séparément.
  */
 function SiteSettings() {
   const { config, updateConfig, saveConfig, resetConfig } = useSiteConfig()
@@ -571,30 +739,66 @@ function SiteSettings() {
       </p>
 
       <div className="settings-fields">
-        <Field
-          label="Logo (navbar / footer)"
-          value={config.branding.logo}
-          onChange={(v) => updateConfig({ branding: { logo: v || null } })}
-          placeholder="https://…/logo.png"
-        />
-        <Field
-          label="Image du Hero"
-          value={config.hero.image}
-          onChange={(v) => updateConfig({ hero: { image: v || null } })}
-          placeholder="https://…/hero.jpg"
-        />
-        <Field
-          label="Image — présentation"
-          value={config.about.image}
-          onChange={(v) => updateConfig({ about: { image: v || null } })}
-          placeholder="https://…/cabinet.jpg"
-        />
-        <Field
-          label="Image — technologies"
-          value={config.technology.image}
-          onChange={(v) => updateConfig({ technology: { image: v || null } })}
-          placeholder="https://…/equipement.jpg"
-        />
+        <div className="settings-image-control">
+          <Field
+            label="Logo (navbar / footer)"
+            value={config.branding.logo}
+            onChange={(v) => updateConfig({ branding: { logo: v || null } })}
+            placeholder="https://…/logo.png"
+          />
+          <SiteImageUploader
+            label="Logo"
+            storageKey="branding.logo"
+            value={config.branding.logo}
+            alt={config.branding.cabinetName}
+            onUploaded={(url) => updateConfig({ branding: { logo: url } })}
+          />
+        </div>
+        <div className="settings-image-control">
+          <Field
+            label="Image du Hero"
+            value={config.hero.image}
+            onChange={(v) => updateConfig({ hero: { image: v || null } })}
+            placeholder="https://…/hero.jpg"
+          />
+          <SiteImageUploader
+            label="Image du Hero"
+            storageKey="hero.image"
+            value={config.hero.image}
+            alt={config.hero.imageAlt}
+            onUploaded={(url) => updateConfig({ hero: { image: url } })}
+          />
+        </div>
+        <div className="settings-image-control">
+          <Field
+            label="Image — présentation"
+            value={config.about.image}
+            onChange={(v) => updateConfig({ about: { image: v || null } })}
+            placeholder="https://…/cabinet.jpg"
+          />
+          <SiteImageUploader
+            label="Image — présentation"
+            storageKey="about.image"
+            value={config.about.image}
+            alt={config.about.imageAlt}
+            onUploaded={(url) => updateConfig({ about: { image: url } })}
+          />
+        </div>
+        <div className="settings-image-control">
+          <Field
+            label="Image — technologies"
+            value={config.technology.image}
+            onChange={(v) => updateConfig({ technology: { image: v || null } })}
+            placeholder="https://…/equipement.jpg"
+          />
+          <SiteImageUploader
+            label="Image — technologies"
+            storageKey="technology.image"
+            value={config.technology.image}
+            alt={config.technology.imageAlt}
+            onUploaded={(url) => updateConfig({ technology: { image: url } })}
+          />
+        </div>
       </div>
 
       <div className="settings-fields single">

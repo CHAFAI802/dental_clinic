@@ -54,8 +54,9 @@ class CreateTreatmentFromConfirmedAppointmentTest(APITestCase):
             effective_from=timezone.now().date(),
         )
 
-        start_at = timezone.now() + timedelta(hours=1)
-        end_at = start_at + timedelta(minutes=30)
+        now = timezone.now()
+        start_at = now - timedelta(minutes=10)
+        end_at = now + timedelta(minutes=20)
 
         self.appointment = Appointment.objects.create(
             patient=self.patient,
@@ -149,3 +150,47 @@ class CreateTreatmentFromConfirmedAppointmentTest(APITestCase):
         print("Appointment ID : ", self.appointment.id)
         print("Status         : ", self.appointment.status)
         print("=================================")
+
+    def test_dentist_cannot_create_treatment_for_past_appointment(self):
+        # Placer le rendez-vous dans le passé tout en conservant
+        # son statut confirmé.
+        self.appointment.start_at = timezone.now() - timedelta(hours=2)
+        self.appointment.end_at = self.appointment.start_at + timedelta(minutes=30)
+        self.appointment.save()
+
+        response = self.client.post(
+            reverse("treatment-list"),
+            {
+                "appointment": self.appointment.pk,
+                "prestation": self.prestation.pk,
+                "quantity": Decimal("1.00"),
+            },
+            format="json",
+        )
+
+        # La création doit être refusée.
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+            msg=f"Réponse inattendue de l'API : {response.data}",
+        )
+
+        # Aucun traitement ne doit avoir été créé.
+        self.assertEqual(
+            Treatment.objects.filter(
+                appointment=self.appointment
+            ).count(),
+            0,
+        )
+
+        # Aucune ligne de facturation ne doit avoir été créée.
+        self.assertEqual(
+            InvoiceLine.objects.count(),
+            0,
+        )
+
+        # Aucune facture ne doit avoir été créée.
+        self.assertEqual(
+            Invoice.objects.count(),
+            0,
+        )

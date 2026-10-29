@@ -506,3 +506,50 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/*
+ * Module Rendez-vous : couleurs conditionnelles des lignes et pagination
+ * de la liste. Réutilise les jetons d'état de variables.css et les classes
+ * existantes (.btn, .btn-outline, .btn-sm) pour rester cohérent avec le
+ * reste du tableau (.table-shell).
+ *
+ *   - statut completed                        → fond vert ;
+ *   - statut confirmed avec end_at passé      → fond rouge (raté) ;
+ *   - tout autre statut                       → présentation inchangée.
+ */
+
+.appointment-row.is-completed {
+  background: var(--color-success-soft);
+}
+
+.appointment-row.is-missed {
+  background: var(--color-danger-soft);
+}
+
+.appointments-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+.appointments-pagination-status {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: var(--weight-medium);
+}
+
+/* Commandes inutilisables (première / dernière page) : état désactivé
+   explicite, sans effet de survol ni décalage. */
+.appointments-pagination .btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.appointments-pagination .btn:disabled:hover {
+  background: transparent;
+  border-color: var(--color-border-strong);
+}

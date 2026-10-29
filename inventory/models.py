@@ -518,10 +518,14 @@ class StockExit(TimestampedModel):
                 "Le mode de sélection est invalide."
             )
 
-        if self.selection_mode == self.SelectionMode.MANUAL and self.manual_allocations is not None:
+        if self.selection_mode == self.SelectionMode.MANUAL:
             if not isinstance(self.manual_allocations, list):
                 errors["manual_allocations"] = [
                     "Le format des allocations manuelles n'est pas valide."
+                ]
+            elif not self.manual_allocations:
+                errors["manual_allocations"] = [
+                    "Le mode manuel exige au moins un lot."
                 ]
             else:
                 total_allocated = Decimal("0")
@@ -588,7 +592,7 @@ class StockExit(TimestampedModel):
                                     )
                                     latest_error = "manual_allocations"
 
-                                if lot.is_perishable and self.selection_mode == self.SelectionMode.MANUAL:
+                                if self.item.is_perishable:
                                     if not lot.expiration_date:
                                         errors.setdefault("manual_allocations", []).append(
                                             f"L'allocation #{idx + 1} désigne un lot "
@@ -772,7 +776,7 @@ class StockExit(TimestampedModel):
                     "manual_allocations": "Un lot ne peut être prélevé que sur l'article de la sortie."
                 })
 
-            if lot.is_perishable and lot.expiration_date and lot.expiration_date < timezone.localdate():
+            if item.is_perishable and lot.expiration_date and lot.expiration_date < timezone.localdate():
                 raise ValidationError({
                     "manual_allocations": f"L'allocation #{idx + 1} désigne un lot périmé."
                 })
@@ -783,22 +787,9 @@ class StockExit(TimestampedModel):
                                     f"dépasse la quantité restante ({lot.remaining_quantity})."
                 })
 
-            lot.remaining_quantity -= quantity
-            lot._updating_stock = True
-            try:
-                lot.save(
-                    update_fields=["remaining_quantity", "updated_at"]
-                )
-            finally:
-                lot._updating_stock = False
-
-            allocations.append({
-                "stock_exit": self,
-                "stock_entry": lot,
-                "quantity": quantity,
-            })
-
-            total += quantity
+            # Ne pas modifier le lot ici : apply() applique chaque
+            # allocation une seule fois après validation de toutes les données.
+            allocations.append((lot, quantity))
 
         return allocations
 
