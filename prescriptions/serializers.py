@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from django.core.exceptions import ValidationError as DjangoValidationError
 from accounts.models import User
+from appointments.models import Appointment
 from documents.models import DocumentTemplate
 from documents.services.docx import inspect_docx_template
 from patients.models import Medication, Patient
@@ -9,6 +10,11 @@ from .models import Prescription, PrescriptionTemplate
 
 class PrescriptionGenerationSerializer(serializers.Serializer):
     patient = serializers.PrimaryKeyRelatedField(queryset=Patient.objects.all())
+    # Rendez-vous de la séance : obligatoire, contrôlé côté backend
+    # (praticien, patient, statut CONFIRMED, intervalle horaire).
+    appointment = serializers.PrimaryKeyRelatedField(
+        queryset=Appointment.objects.all()
+    )
     document_template = serializers.PrimaryKeyRelatedField(
         queryset=DocumentTemplate.objects.filter(
             is_active=True,
@@ -52,11 +58,11 @@ class PrescriptionSerializer(serializers.ModelSerializer):
         fields = [
             "id", "created_at", "updated_at", "filled_data", "generated_at",
             "status", "pdf_file", "generated_file", "notes", "patient", "dentist",
-            "template", "document_template",
+            "appointment", "template", "document_template",
         ]
         read_only_fields = [
             "id", "created_at", "updated_at", "generated_at",
-            "document_template",
+            "appointment", "document_template",
         ]
 
     def validate(self, attrs):

@@ -6,6 +6,7 @@ from .views import (
     RoomViewSet,
     AppointmentRequestView,
     AppointmentSlotsView,
+    AppointmentPractitionersView,
 )
 
 router = DefaultRouter()
@@ -24,5 +25,10 @@ urlpatterns = [
         'appointment-slots/',
         AppointmentSlotsView.as_view(),
         name='appointment-slots',
+    ),
+    path(
+        'appointment-practitioners/',
+        AppointmentPractitionersView.as_view(),
+        name='appointment-practitioners',
     ),
 ]

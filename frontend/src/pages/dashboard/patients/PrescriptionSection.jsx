@@ -22,9 +22,14 @@ import {
  *   PATCH /api/medications/<id>/             → mise à jour d'une ligne déjà
  *                                              enregistrée (évite les doublons)
  *   POST /api/prescriptions/generate-from-document-template/
- *        {patient, document_template, medications:[ids], notes}
+ *        {patient, appointment, document_template, medications:[ids], notes}
  *                                              → 201 + generated_file (le
  *                                              VRAI fichier DOCX du backend)
+ *
+ * `appointment` est l'identifiant du rendez-vous de la séance : il est
+ * obligatoire et contrôlé côté backend (praticien, patient, statut
+ * « confirmed », heure dans l'intervalle du rendez-vous). Le choix est
+ * explicite dès lors que plusieurs rendez-vous confirmés existent.
  *
  * Le document n'est jamais reconstruit en HTML : ouverture, téléchargement
  * et impression pointent tous vers l'URL retournée par l'API.
@@ -99,7 +104,13 @@ function validateLines(lines) {
   return errors
 }
 
-function PrescriptionSection({ patientId, patient }) {
+function PrescriptionSection({
+  patientId,
+  patient,
+  appointmentChoices = [],
+  selectedAppointment = null,
+  onSelectAppointment = () => {},
+}) {
   const [templates, setTemplates] = useState([])
   const [areTemplatesLoading, setAreTemplatesLoading] = useState(true)
   const [templatesError, setTemplatesError] = useState('')
@@ -233,6 +244,15 @@ function PrescriptionSection({ patientId, patient }) {
       return
     }
 
+    if (!selectedAppointment) {
+      setGenerateError(
+        appointmentChoices.length === 0
+          ? 'Aucun rendez-vous confirmé : l’ordonnance doit être rattachée à la séance en cours.'
+          : 'Sélectionnez le rendez-vous de la séance concerné par cette ordonnance.',
+      )
+      return
+    }
+
     if (lines.length === 0) {
       setGenerateError('Ajoutez au moins un médicament au traitement.')
       return
@@ -277,6 +297,7 @@ function PrescriptionSection({ patientId, patient }) {
         '/prescriptions/generate-from-document-template/',
         {
           patient: Number(patientId),
+          appointment: Number(selectedAppointment.id),
           document_template: Number(templateId),
           medications: medicationIds,
           notes,
@@ -327,7 +348,11 @@ function PrescriptionSection({ patientId, patient }) {
 
   const hasTemplates = templates.length > 0
   const canGenerate =
-    !isGenerating && !areTemplatesLoading && hasTemplates && lines.length > 0
+    !isGenerating &&
+    !areTemplatesLoading &&
+    hasTemplates &&
+    lines.length > 0 &&
+    Boolean(selectedAppointment)
 
   return (
     <>
@@ -383,6 +408,37 @@ function PrescriptionSection({ patientId, patient }) {
             approuvé avant toute génération.
           </p>
         ) : null}
+
+        <label>
+          Rendez-vous de la séance
+          <select
+            required
+            data-testid="appointment-select"
+            disabled={appointmentChoices.length <= 1}
+            value={selectedAppointment ? String(selectedAppointment.id) : ''}
+            onChange={(event) => onSelectAppointment(event.target.value)}
+          >
+            <option value="">
+              {appointmentChoices.length === 0
+                ? 'Aucun rendez-vous confirmé'
+                : appointmentChoices.length === 1
+                  ? 'Séance unique confirmée'
+                  : 'Sélectionner le rendez-vous concerné'}
+            </option>
+            {appointmentChoices.map((choice) => (
+              <option key={choice.id} value={choice.id}>
+                {choice.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        {appointmentChoices.length === 0 && (
+          <p className="error-text">
+            Aucun rendez-vous confirmé pour ce patient : l'ordonnance doit
+            être rattachée à la séance en cours.
+          </p>
+        )}
 
         <label>
           Notes de l'ordonnance (facultatif)

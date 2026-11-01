@@ -37,6 +37,32 @@ services:
         condition: service_healthy
     command: python manage.py runserver 0.0.0.0:8000
 
+  # Clôture automatique des rendez-vous : processus long et idempotent,
+  # exécuté en dehors des requêtes HTTP. Redémarré automatiquement par
+  # Docker, il reprend correctement après un redémarrage de la pile.
+  # L'entrypoint Django est court-circuité pour ne jamais lancer deux
+  # `migrate` simultanés avec le service web.
+  scheduler:
+    build: .
+    entrypoint: ["python", "manage.py"]
+    command: ["close_expired_appointments", "--interval", "30"]
+    environment:
+      DEBUG: ${DEBUG}
+      SECRET_KEY: ${SECRET_KEY}
+      DATABASE_URL: ${DATABASE_URL}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS}
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+      API_EMAIL: ${API_EMAIL}
+      API_PASSWORD: ${API_PASSWORD}
+    volumes:
+      - .:/app
+      - media_data:/app/media
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
   frontend:
     build:
       context: ./frontend

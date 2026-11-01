@@ -307,6 +307,19 @@ function DentistPatientPage({ patientId, onClose }) {
       : confirmedAppointments.find(
           (appointment) => String(appointment.id) === String(selectedAppointmentId),
         ) || null
+  const selectedPrestation =
+    activePrestations.find(
+      (prestation) => String(prestation.id) === String(selectedPrestationId),
+    ) || null
+  // Code métier de l'acte de prescription : la quantité est toujours 1
+  // (imposée aussi côté backend).
+  const isPrescriptionPrestation = selectedPrestation?.code === 'PRESC'
+  // Choix du rendez-vous de la séance partagé entre « Consultations / actes »
+  // et « Ordonnances » : jamais de rendez-vous choisi arbitrairement.
+  const appointmentChoices = confirmedAppointments.map((appointment) => ({
+    id: appointment.id,
+    label: formatAppointmentOption(appointment),
+  }))
   const quantityValue = Number(quantity)
   const isQuantityValid =
     quantity !== '' && Number.isFinite(quantityValue) && quantityValue >= 0.01
@@ -486,10 +499,11 @@ function DentistPatientPage({ patientId, onClose }) {
   try {
     // Le backend crée le Treatment, la ligne de facture et la facture,
     // puis calcule prix, TVA et total : aucun calcul financier ici.
+    // L'acte PRESC est envoyé avec la quantité fixe 1.
     await apiPost('/treatments/', {
       appointment: Number(selectedAppointment.id),
       prestation: Number(selectedPrestationId),
-      quantity,
+      quantity: isPrescriptionPrestation ? '1' : quantity,
     })
   } catch (err) {
     setTreatmentCreateError(err.message)
@@ -497,19 +511,40 @@ function DentistPatientPage({ patientId, onClose }) {
     return
   }
 
-  setSelectedAppointmentId('')
+  // Le rendez-vous reste sélectionné : la séance est ouverte et peut
+  // accueillir d'autres prestations. Seule la prestation est réinitialisée.
   setSelectedPrestationId('')
   setQuantity('1.00')
-  setTreatmentCreateSuccess('Prestation ajoutée au dossier.')
 
-  // Le rendez-vous utilisé passe en « completed » : on recharge la liste
-  // pour que la sélection reste cohérente.
+  // On recharge la liste des rendez-vous pour rester cohérent avec le
+  // backend, en conservant la sélection tant que la séance reste ouverte.
   try {
     const records = await apiGet('/appointments/')
-    setAppointments(Array.isArray(records) ? records : [])
+    const list = Array.isArray(records) ? records : []
+    setAppointments(list)
     setAppointmentsError('')
+
+    const isStillUsable = list.some(
+      (appointment) =>
+        String(appointment.id) === String(selectedAppointment.id) &&
+        appointment.status === 'confirmed',
+    )
+
+    if (isStillUsable) {
+      setTreatmentCreateSuccess(
+        'Prestation ajoutée au dossier. Le rendez-vous reste ouvert : vous pouvez enregistrer une autre prestation.',
+      )
+    } else {
+      // La séance n'est plus utilisable : plus aucun rendez-vous à
+      // conserver pour cette session.
+      setSelectedAppointmentId('')
+      setTreatmentCreateSuccess(
+        'Prestation ajoutée : le rendez-vous est désormais clôturé.',
+      )
+    }
   } catch (err) {
     setAppointmentsError(err.message)
+    setTreatmentCreateSuccess('Prestation ajoutée au dossier.')
   } finally {
     setIsCreatingTreatment(false)
   }
@@ -964,7 +999,18 @@ function DentistPatientPage({ patientId, onClose }) {
               required
               disabled={arePrestationsLoading || activePrestations.length === 0}
               value={selectedPrestationId}
-              onChange={(event) => setSelectedPrestationId(event.target.value)}
+              onChange={(event) => {
+                const nextPrestationId = event.target.value
+                const nextPrestation = activePrestations.find(
+                  (prestation) =>
+                    String(prestation.id) === String(nextPrestationId),
+                )
+                setSelectedPrestationId(nextPrestationId)
+                if (nextPrestation?.code === 'PRESC') {
+                  // Quantité fixe de l'acte PRESC.
+                  setQuantity('1.00')
+                }
+              }}
             >
               <option value="">
                 {arePrestationsLoading
@@ -988,10 +1034,17 @@ function DentistPatientPage({ patientId, onClose }) {
               required
               min="0.01"
               step="0.01"
-              value={quantity}
+              value={isPrescriptionPrestation ? '1' : quantity}
+              disabled={isPrescriptionPrestation}
               onChange={(event) => setQuantity(event.target.value)}
             />
           </label>
+
+          {isPrescriptionPrestation && (
+            <p className="muted">
+              Acte de prescription (PRESC) : quantité fixe de 1.
+            </p>
+          )}
 
           {!isQuantityValid && (
             <p className="error-text">
@@ -1027,6 +1080,9 @@ function DentistPatientPage({ patientId, onClose }) {
             key={`prescription-${patientId}`}
             patientId={patientId}
             patient={patient}
+            appointmentChoices={appointmentChoices}
+            selectedAppointment={selectedAppointment}
+            onSelectAppointment={setSelectedAppointmentId}
           />
         </section>
       </div>

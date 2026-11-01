@@ -1,9 +1,11 @@
-from datetime import date, time
+from datetime import date, datetime, time, timedelta, timezone as dt_timezone
 
 from django.test import TestCase
+from unittest.mock import patch
 
 from accounts.models import User
 from appointments.services.appointmentstatus import get_available_slots
+from django.utils import timezone
 from website.models import WorkingHours
 
 
@@ -43,8 +45,10 @@ class AvailableSlotsRestDayTests(TestCase):
         )
 
     def test_each_practitioner_has_individual_rest_days(self):
-        monday = date(2026, 9, 21)
-        tuesday = date(2026, 9, 22)
+        today = timezone.localdate()
+        days_until_monday = (0 - today.weekday()) % 7 or 7
+        monday = today + timedelta(days=days_until_monday)
+        tuesday = monday + timedelta(days=1)
 
         slots = get_available_slots(
             start_date=monday,
@@ -73,4 +77,50 @@ class AvailableSlotsRestDayTests(TestCase):
         self.assertEqual(
             {slot["practitioner"] for slot in tuesday_slots},
             {self.doctor_a.id},
+        )
+
+
+class AvailableSlotsPastTimeTests(TestCase):
+
+    def setUp(self):
+        self.doctor = User.objects.create_user(
+            first_name="Doctor",
+            last_name="PastTime",
+            role=User.Role.DENTIST,
+            email="pasttime@example.com",
+            password="password",
+        )
+
+    def test_slots_starting_at_or_before_current_time_are_excluded(self):
+        test_date = date(2026, 10, 31)
+
+        WorkingHours.objects.create(
+            practitioner=self.doctor,
+            weekday=test_date.weekday(),
+            start_time=time(8, 0),
+            end_time=time(15, 0),
+        )
+
+        fixed_now = datetime(
+            2026, 10, 31, 12, 0,
+            tzinfo=dt_timezone.utc,
+        )
+
+        with patch(
+            "appointments.services.appointmentstatus.timezone.now",
+            return_value=fixed_now,
+        ):
+            slots = get_available_slots(
+                practitioner=self.doctor,
+                start_date=test_date,
+                end_date=test_date,
+            )
+
+        self.assertTrue(slots)
+        self.assertTrue(
+            all(slot["start_at"] > fixed_now for slot in slots)
+        )
+        self.assertEqual(
+            [slot["start_at"].hour for slot in slots],
+            [13, 14, 14],
         )

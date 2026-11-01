@@ -70,6 +70,30 @@ class AppointmentRequestAPITests(TestCase):
             Appointment.Source.ONLINE,
         )
 
+    def test_first_request_persists_birthdate_and_gender(self):
+        response = self.client.post(
+            self.url,
+            {
+                "first_request": True,
+                "first_name": "Jane",
+                "last_name": "Doe",
+                "email": "jane@example.com",
+                "phone": "0612345678",
+                "birthdate": "1998-02-14",
+                "gender": "F",
+                "practitioner": self.doctor.id,
+                "start_at": self.start_at.isoformat(),
+                "end_at": self.end_at.isoformat(),
+                "reason": "First consultation",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        patient = Patient.objects.get(email="jane@example.com")
+        self.assertEqual(patient.birthdate, date(1998, 2, 14))
+        self.assertEqual(patient.gender, "F")
+
     def test_existing_patient_can_request_with_patient_code(self):
         patient = Patient.objects.create(
             first_name="John",

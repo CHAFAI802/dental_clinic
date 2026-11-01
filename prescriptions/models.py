@@ -40,6 +40,17 @@ class Prescription(TimestampedModel):
 
     patient = models.ForeignKey('patients.Patient', related_name='prescriptions', on_delete=models.CASCADE)
     dentist = models.ForeignKey('accounts.User', related_name='prescriptions', on_delete=models.PROTECT)
+    # Rattachement historique de l'ordonnance à la séance pendant laquelle
+    # elle a été générée. Nullable pour conserver les ordonnances
+    # historiques créées avant ce lien ; le flux de génération exige
+    # néanmoins un rendez-vous valide (cf. prescriptions.views).
+    appointment = models.ForeignKey(
+        'appointments.Appointment',
+        related_name='prescriptions',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+    )
     template = models.ForeignKey(
         'prescriptions.PrescriptionTemplate',
         related_name='prescriptions',

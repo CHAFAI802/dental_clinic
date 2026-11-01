@@ -6,19 +6,23 @@ from django.db import transaction
 from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
-from rest_framework.exceptions import PermissionDenied, ValidationError
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
 from .models import Prescription, PrescriptionTemplate
 from accounts.permissions import IsDentist, IsStaffMember
-from appointments.models import Appointment
+from appointments.services.appointmentstatus import (
+    validate_session_appointment,
+)
 from documents.models import DocumentTemplate
 from documents.services.docx import (
     file_sha256,
     inspect_docx_template,
     render_prescription_docx,
 )
-from treatments.models import Treatment
+from treatments.services.treatment_creation import (
+    ensure_prescription_treatment,
+)
 from .serializers import (
     PrescriptionGenerationSerializer,
     PrescriptionSerializer,
@@ -47,19 +51,22 @@ class PrescriptionViewSet(viewsets.ModelViewSet):
         data = input_serializer.validated_data
 
         patient = data["patient"]
-        has_appointment = Appointment.objects.filter(
-            practitioner=request.user,
-            patient=patient,
-        ).exists()
-        has_treatment = Treatment.objects.filter(
-            dentist=request.user,
-            patient=patient,
-        ).exists()
-        if not (has_appointment or has_treatment):
-            raise PermissionDenied(
-                "Vous ne pouvez générer une ordonnance que pour un patient "
-                "qui vous est rattaché."
+        appointment = data["appointment"]
+
+        # Mêmes contrôles que pour l'enregistrement d'une prestation :
+        # rendez-vous du dentiste connecté, patient correspondant,
+        # statut CONFIRMED et heure courante dans [start_at, end_at[.
+        # Le simple fait d'avoir déjà reçu le patient ne suffit pas.
+        try:
+            validate_session_appointment(
+                appointment=appointment,
+                dentist=request.user,
+                patient=patient,
+                action="l'ordonnance",
             )
+        except DjangoValidationError as exc:
+            # Erreur de validation métier explicite (HTTP 400).
+            raise ValidationError(exc.message_dict) from exc
 
         with transaction.atomic():
             template = DocumentTemplate.objects.select_for_update().filter(
@@ -110,9 +117,24 @@ class PrescriptionViewSet(viewsets.ModelViewSet):
                     {"document_template": "Ce modèle ne contient aucune zone de prescription."}
                 )
             generated_at = timezone.now()
+
+            # Identification automatique de la prestation PRESC lorsqu'aucune
+            # prestation dentaire n'est enregistrée pour ce rendez-vous
+            # (aucune sélection manuelle, aucun doublon : traitement déjà
+            # présent réutilisé). Aucune facture n'est créée ici : la
+            # facturation est décidée à la clôture du rendez-vous.
+            try:
+                ensure_prescription_treatment(
+                    appointment=appointment,
+                    dentist=request.user,
+                )
+            except DjangoValidationError as exc:
+                raise ValidationError(exc.message_dict) from exc
+
             prescription = Prescription.objects.create(
                 patient=patient,
                 dentist=request.user,
+                appointment=appointment,
                 document_template=template,
                 filled_data={
                     "medications": [

@@ -6,6 +6,8 @@ Parcours réel couvert, du client API jusqu'au fichier DOCX produit :
         -> sélection d'un patient autorisé
         -> récupération des données du patient (source métier : tables Patient)
         -> envoi des médicaments (contrat réel de l'API)
+        -> rattachement à la séance (rendez-vous confirmé du praticien,
+           heure courante dans l'intervalle du créneau)
         -> appel du véritable endpoint generate-from-document-template
         -> validation du modèle actif ET approuvé
         -> génération du DOCX à partir du véritable modèle Word
@@ -30,6 +32,7 @@ from rest_framework.test import APITestCase
 
 from accounts.models import User
 from appointments.models import Appointment
+from billing.models import Prestation, PrestationCategory
 from documents.models import DocumentTemplate
 from documents.tests.docx_fixtures import load_real_template_bytes
 from patients.models import Medication, Patient
@@ -93,12 +96,25 @@ class RealTemplateEndToEndTests(APITestCase):
             address="12 rue des Lilas",
             city="Lyon",
         )
-        starts = timezone.now() + timedelta(days=1)
-        Appointment.objects.create(
+        # Séance en cours : l'ordonnance doit être rattachée à un
+        # rendez-vous confirmé du praticien, en cours d'exécution.
+        now = timezone.now()
+        self.appointment = Appointment.objects.create(
             patient=self.patient,
             practitioner=self.dentist,
-            start_at=starts,
-            end_at=starts + timedelta(minutes=30),
+            start_at=now - timedelta(minutes=10),
+            end_at=now + timedelta(minutes=30),
+            status=Appointment.Status.CONFIRMED,
+        )
+        # L'acte PRESC doit exister au catalogue : la génération rattache
+        # automatiquement cet acte à la séance (sans facturer).
+        self.presc_prestation = Prestation.objects.create(
+            category=PrestationCategory.objects.create(
+                name="Actes administratifs",
+                code="ADMIN",
+            ),
+            code="PRESC",
+            label="Acte de prescrire",
         )
         self.medications = [
             Medication.objects.create(
@@ -153,6 +169,7 @@ class RealTemplateEndToEndTests(APITestCase):
             "/api/prescriptions/generate-from-document-template/",
             {
                 "patient": self.patient.pk,
+                "appointment": self.appointment.pk,
                 "document_template": self.template.pk,
                 "medications": [medication.pk for medication in self.medications],
                 "notes": "Contrôle post-opératoire",
@@ -270,6 +287,7 @@ class RealTemplateEndToEndTests(APITestCase):
             "/api/prescriptions/generate-from-document-template/",
             {
                 "patient": self.patient.pk,
+                "appointment": self.appointment.pk,
                 "document_template": self.template.pk,
                 "medications": [medication.pk for medication in long_medications],
             },
@@ -344,13 +362,16 @@ class RealTemplateEndToEndTests(APITestCase):
             "/api/prescriptions/generate-from-document-template/",
             {
                 "patient": unlinked_patient.pk,
+                "appointment": self.appointment.pk,
                 "document_template": self.template.pk,
                 "medications": [medication.pk],
             },
             format="json",
         )
 
-        self.assertEqual(response.status_code, 403)
+        # Aucune séance ne relie ce patient au dentiste : le rendez-vous
+        # fourni appartient bien au praticien mais à un autre patient.
+        self.assertEqual(response.status_code, 400)
         self.assertFalse(Prescription.objects.exists())
 
     # ------------------------------------------------------------------
@@ -369,6 +390,7 @@ class RealTemplateEndToEndTests(APITestCase):
             "/api/prescriptions/generate-from-document-template/",
             {
                 "patient": self.patient.pk,
+                "appointment": self.appointment.pk,
                 "document_template": pending.pk,
                 "medications": [self.medications[0].pk],
             },
@@ -386,6 +408,7 @@ class RealTemplateEndToEndTests(APITestCase):
             "/api/prescriptions/generate-from-document-template/",
             {
                 "patient": self.patient.pk,
+                "appointment": self.appointment.pk,
                 "document_template": self.template.pk,
                 "medications": [self.medications[0].pk],
             },
@@ -403,6 +426,7 @@ class RealTemplateEndToEndTests(APITestCase):
             "/api/prescriptions/generate-from-document-template/",
             {
                 "patient": self.patient.pk,
+                "appointment": self.appointment.pk,
                 "document_template": self.template.pk,
                 "medications": [self.medications[0].pk],
             },
@@ -421,6 +445,7 @@ class RealTemplateEndToEndTests(APITestCase):
             "/api/prescriptions/generate-from-document-template/",
             {
                 "patient": self.patient.pk,
+                "appointment": self.appointment.pk,
                 "document_template": self.template.pk,
             },
             format="json",
@@ -450,6 +475,7 @@ class RealTemplateEndToEndTests(APITestCase):
             "/api/prescriptions/generate-from-document-template/",
             {
                 "patient": self.patient.pk,
+                "appointment": self.appointment.pk,
                 "document_template": self.template.pk,
                 "medications": [self.medications[0].pk, foreign_medication.pk],
             },
@@ -475,6 +501,7 @@ class RealTemplateEndToEndTests(APITestCase):
             "/api/prescriptions/generate-from-document-template/",
             {
                 "patient": self.patient.pk,
+                "appointment": self.appointment.pk,
                 "document_template": self.template.pk,
                 "medications": [foreign_medication.pk],
             },

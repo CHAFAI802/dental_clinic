@@ -65,6 +65,24 @@ class AppointmentRequestServiceTests(TestCase):
             1,
         )
 
+    def test_first_request_persists_birthdate_and_gender(self):
+        appointment = AppointmentRequestService.submit(
+            first_request=True,
+            practitioner=self.doctor,
+            start_at=self.start_at,
+            end_at=self.end_at,
+            first_name="Jane",
+            last_name="Doe",
+            email="jane@example.com",
+            phone="0612345678",
+            birthdate=date(1998, 2, 14),
+            gender="F",
+            reason="Follow-up",
+        )
+
+        self.assertEqual(appointment.patient.birthdate, date(1998, 2, 14))
+        self.assertEqual(appointment.patient.gender, "F")
+
     def test_existing_patient_can_request_with_patient_code(self):
         patient = Patient.objects.create(
             first_name="John",

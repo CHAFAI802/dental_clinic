@@ -216,7 +216,18 @@ class Appointment(SoftDeleteModel):
                 }
             )
 
-    def save(self, *args, changed_by=None, **kwargs):
+    # Trace laissée dans AppointmentStatusLog lors d'une transition
+    # automatique (clôture programmée de fin de créneau) : aucun acteur
+    # humain n'est impliqué, aucun utilisateur n'est donc inventé.
+    AUTOMATIC_STATUS_NOTE = (
+        "Transition automatique : fin du créneau atteinte "
+        "(aucun acteur humain)."
+    )
+
+    def save(self, *args, changed_by=None, auto=False, **kwargs):
+        # `auto=True` est réservé aux transitions automatiques explicites
+        # (clôture de fin de séance) : il dispense d'un acteur humain,
+        # sans jamais usurper l'identité d'un dentiste.
         # Detect status change before full_clean()
         old_status = self._get_old_status()
 
@@ -241,7 +252,7 @@ class Appointment(SoftDeleteModel):
             old_status is not None and old_status != self.status
         )
 
-        if status_changed and changed_by is None:
+        if status_changed and changed_by is None and not auto:
             raise ValidationError(
                 {
                     "status": (
@@ -277,6 +288,7 @@ class Appointment(SoftDeleteModel):
                     new_status=self.status,
                     changed_by=changed_by,
                     changed_at=timezone.now(),
+                    note=self.AUTOMATIC_STATUS_NOTE if auto else "",
                 )
 
             return result

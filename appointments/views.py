@@ -8,7 +8,7 @@ from datetime import datetime
 from notifications.services.appointment_confirmed_notification import (
     appointment_confirmed_notification,
 )
-
+from website.models import WorkingHours
 from accounts.permissions import IsAppointmentManager
 from django.utils import timezone
 from .models import Appointment, Room
@@ -213,3 +213,21 @@ class AppointmentSlotsView(APIView):
             serializer.data,
             status=status.HTTP_200_OK,
         )
+
+class AppointmentPractitionersView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, *args, **kwargs):
+        practitioners = (
+            User.objects.filter(
+                role=User.Role.DENTIST,
+                is_active=True,
+                is_deleted=False,
+                working_hours__is_active=True,
+            )
+            .distinct()
+            .order_by("last_name", "first_name")
+            .values("id", "first_name", "last_name")
+        )
+
+        return Response(practitioners)

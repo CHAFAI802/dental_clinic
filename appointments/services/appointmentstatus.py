@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
 
@@ -44,6 +45,7 @@ def get_available_slots(
         )
 
     slots = []
+    current_time = timezone.now()
 
     for working_hour in working_hours:
         current_date = start_date + timedelta(
@@ -84,6 +86,10 @@ def get_available_slots(
                 candidate_end = slot_start + timedelta(
                     minutes=slot_duration_minutes
                 )
+
+                if slot_start <= current_time:
+                    slot_start = candidate_end
+                    continue
 
                 has_conflict = Appointment.objects.filter(
                     practitioner=working_hour.practitioner,
@@ -135,6 +141,8 @@ class AppointmentRequestService:
                 last_name=last_name,
                 email=email or "",
                 phone=phone,
+                birthdate=birthdate,
+                gender=gender or "",
             )
         else:
             patient = AppointmentRequestService._find_existing_patient(
@@ -207,6 +215,59 @@ class AppointmentRequestService:
         raise Patient.DoesNotExist(
             "No patient matches the provided information."
         )
+
+
+def validate_session_appointment(
+    *,
+    appointment,
+    dentist,
+    patient=None,
+    action="le traitement",
+):
+    """
+    Contrôles communs à toute opération enregistrée pendant une séance.
+
+    Utilisé par la création de traitement et par la génération d'une
+    ordonnance afin que les deux flux appliquent exactement les mêmes
+    règles : praticien, patient, statut et intervalle horaire.
+    """
+
+    if appointment.practitioner_id != dentist.id:
+        raise ValidationError({
+            "appointment": (
+                "Ce rendez-vous n'appartient pas au dentiste connecté."
+            )
+        })
+
+    if patient is not None and appointment.patient_id != patient.id:
+        raise ValidationError({
+            "appointment": (
+                "Le patient du rendez-vous ne correspond pas au patient "
+                "de l'opération."
+            )
+        })
+
+    if appointment.status != Appointment.Status.CONFIRMED:
+        raise ValidationError({
+            "appointment": (
+                "Le rendez-vous doit être confirmé avant "
+                f"d'enregistrer {action}."
+            )
+        })
+
+    now = timezone.now()
+
+    if now < appointment.start_at or now >= appointment.end_at:
+        raise ValidationError({
+            "appointment": (
+                f"Impossible d'enregistrer {action} : "
+                "l'heure actuelle doit appartenir à l'intervalle "
+                "du rendez-vous [début, fin[."
+            )
+        })
+
+    return appointment
+
 
 def complete_appointment_from_treatment(*, treatment):
     appointment = treatment.appointment

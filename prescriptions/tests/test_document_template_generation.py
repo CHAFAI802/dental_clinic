@@ -10,6 +10,7 @@ from rest_framework.test import APITestCase
 
 from accounts.models import User
 from appointments.models import Appointment
+from billing.models import Prestation, PrestationCategory
 from documents.models import DocumentTemplate
 from documents.tests.docx_fixtures import make_prescription_docx, make_simple_docx
 from patients.models import Medication, Patient
@@ -43,12 +44,26 @@ class PrescriptionDocumentTemplateGenerationTests(APITestCase):
             last_name="Example",
             phone="0123456789",
         )
-        starts = timezone.now() + timedelta(days=1)
-        Appointment.objects.create(
+        # Séance en cours : la génération d'ordonnance exige un rendez-vous
+        # confirmé, appartenant au praticien connecté et dont l'heure
+        # courante appartient à [début, fin[.
+        now = timezone.now()
+        self.appointment = Appointment.objects.create(
             patient=self.patient,
             practitioner=self.dentist,
-            start_at=starts,
-            end_at=starts + timedelta(minutes=30),
+            start_at=now - timedelta(minutes=10),
+            end_at=now + timedelta(minutes=30),
+            status=Appointment.Status.CONFIRMED,
+        )
+        # L'acte PRESC doit exister au catalogue : la génération rattache
+        # automatiquement cet acte à la séance (sans facturer).
+        self.presc_prestation = Prestation.objects.create(
+            category=PrestationCategory.objects.create(
+                name="Actes administratifs",
+                code="ADMIN",
+            ),
+            code="PRESC",
+            label="Acte de prescrire",
         )
         self.medications = [
             Medication.objects.create(
@@ -93,6 +108,7 @@ class PrescriptionDocumentTemplateGenerationTests(APITestCase):
             "/api/prescriptions/generate-from-document-template/",
             {
                 "patient": self.patient.pk,
+                "appointment": self.appointment.pk,
                 "document_template": self.template.pk,
                 "medications": [medication.pk for medication in self.medications],
                 "notes": "Prendre après le repas",
@@ -181,7 +197,11 @@ class PrescriptionDocumentTemplateGenerationTests(APITestCase):
 
         response = self.client.post(
             "/api/prescriptions/generate-from-document-template/",
-            {"patient": self.patient.pk, "document_template": unapproved.pk},
+            {
+                "patient": self.patient.pk,
+                "appointment": self.appointment.pk,
+                "document_template": unapproved.pk,
+            },
             format="json",
         )
 
@@ -215,7 +235,11 @@ class PrescriptionDocumentTemplateGenerationTests(APITestCase):
 
         response = self.client.post(
             "/api/prescriptions/generate-from-document-template/",
-            {"patient": self.patient.pk, "document_template": self.template.pk},
+            {
+                "patient": self.patient.pk,
+                "appointment": self.appointment.pk,
+                "document_template": self.template.pk,
+            },
             format="json",
         )
 
@@ -231,6 +255,7 @@ class PrescriptionDocumentTemplateGenerationTests(APITestCase):
             "/api/prescriptions/generate-from-document-template/",
             {
                 "patient": self.patient.pk,
+                "appointment": self.appointment.pk,
                 "document_template": self.template.pk,
                 "medications": [self.medications[0].pk],
             },
@@ -253,6 +278,7 @@ class PrescriptionDocumentTemplateGenerationTests(APITestCase):
             "/api/prescriptions/generate-from-document-template/",
             {
                 "patient": self.patient.pk,
+                "appointment": self.appointment.pk,
                 "document_template": self.template.pk,
                 "medications": [self.medications[0].pk],
             },
@@ -270,6 +296,7 @@ class PrescriptionDocumentTemplateGenerationTests(APITestCase):
             "/api/prescriptions/generate-from-document-template/",
             {
                 "patient": self.patient.pk,
+                "appointment": self.appointment.pk,
                 "document_template": self.template.pk,
                 "medications": [self.medications[0].pk],
             },
@@ -292,20 +319,27 @@ class PrescriptionDocumentTemplateGenerationTests(APITestCase):
             last_name="Patient",
             phone="0987654321",
         )
-        starts = timezone.now() + timedelta(days=2)
-        Appointment.objects.create(
+        starts = timezone.now() - timedelta(minutes=10)
+        other_appointment = Appointment.objects.create(
             patient=other_patient,
             practitioner=other_dentist,
             start_at=starts,
             end_at=starts + timedelta(minutes=30),
+            status=Appointment.Status.CONFIRMED,
         )
         self.client.force_authenticate(self.dentist)
 
+        # La séance appartient à un autre praticien : contrôle métier
+        # partagé avec la création de prestation (HTTP 400).
         response = self.client.post(
             "/api/prescriptions/generate-from-document-template/",
-            {"patient": other_patient.pk, "document_template": self.template.pk},
+            {
+                "patient": other_patient.pk,
+                "appointment": other_appointment.pk,
+                "document_template": self.template.pk,
+            },
             format="json",
         )
 
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 400)
         self.assertFalse(Prescription.objects.exists())
