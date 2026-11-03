@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 
 import { apiDelete, apiGet, apiPost } from '../../../api/client.js'
+import TableShell from '../../../components/dashboard/TableShell.jsx'
+import {
+  filterTableRows,
+  paginateTableRows,
+  TablePagination,
+  TableSearch,
+} from '../../../components/dashboard/TableControls.jsx'
 import { useAuth } from '../../../context/AuthContext.jsx'
 import {
   formatAmount,
@@ -41,6 +48,9 @@ function PaymentsPage() {
   const [isDeletingId, setIsDeletingId] = useState(null)
   const [actionError, setActionError] = useState('')
   const [actionSuccess, setActionSuccess] = useState('')
+  const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
 
   const load = async () => {
     setIsLoading(true)
@@ -238,6 +248,23 @@ function PaymentsPage() {
     return invoice ? invoice.reference_number : `#${invoiceId}`
   }
 
+  const filteredPayments = filterTableRows(payments, search, (payment) => [
+    payment.id,
+    formatDateTime(payment.payment_at),
+    invoiceLabel(payment.invoice),
+    patientLabel(payment.patient, patientLabels),
+    payment.amount,
+    methodLabel(payment.method),
+    payment.reference,
+    paymentStatusLabel(payment.status),
+    payment.paid_by,
+  ])
+  const { items: displayedPayments, currentPage } = paginateTableRows(
+    filteredPayments,
+    page,
+    pageSize,
+  )
+
   if (isLoading) {
     return (
       <section>
@@ -380,7 +407,20 @@ function PaymentsPage() {
       {payments.length === 0 ? (
         <p>Aucun paiement.</p>
       ) : (
-        <div className="table-shell">
+        <>
+        <TableSearch
+          value={search}
+          onChange={(value) => {
+            setSearch(value)
+            setPage(1)
+          }}
+          label="Rechercher un paiement"
+          placeholder="Rechercher par facture, patient, référence, méthode ou statut…"
+        />
+        {filteredPayments.length === 0 ? (
+          <p>Aucun paiement correspondant.</p>
+        ) : (
+        <TableShell>
           <table>
             <thead>
               <tr>
@@ -396,7 +436,7 @@ function PaymentsPage() {
               </tr>
             </thead>
             <tbody>
-              {payments.map((payment) => (
+              {displayedPayments.map((payment) => (
                 <tr key={payment.id}>
                   <td>{formatDateTime(payment.payment_at)}</td>
                   <td>{invoiceLabel(payment.invoice)}</td>
@@ -426,7 +466,22 @@ function PaymentsPage() {
               ))}
             </tbody>
           </table>
-        </div>
+        </TableShell>
+        )}
+        {filteredPayments.length > 0 && (
+          <TablePagination
+            page={currentPage}
+            pageSize={pageSize}
+            totalItems={filteredPayments.length}
+            onPageChange={setPage}
+            onPageSizeChange={(size) => {
+              setPageSize(size)
+              setPage(1)
+            }}
+            label="des paiements"
+          />
+        )}
+        </>
       )}
     </section>
   )

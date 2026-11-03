@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 
 import { apiDelete, apiGet, apiPatch, apiPost } from '../../../api/client.js'
+import TableShell from '../../../components/dashboard/TableShell.jsx'
+import {
+  filterTableRows,
+  paginateTableRows,
+  TablePagination,
+  TableSearch,
+} from '../../../components/dashboard/TableControls.jsx'
 import { useAuth } from '../../../context/AuthContext.jsx'
 import { formatAmount, formatDate } from './helpers.js'
 
@@ -46,6 +53,9 @@ function PrestationTarifsPage() {
   const [deletingId, setDeletingId] = useState(null)
   const [actionError, setActionError] = useState('')
   const [actionSuccess, setActionSuccess] = useState('')
+  const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
 
   const load = async () => {
     setIsLoading(true)
@@ -229,6 +239,19 @@ function PrestationTarifsPage() {
     )
   }
 
+  const filteredTarifs = filterTableRows(tarifs, search, (tarif) => [
+    prestationLabel(tarif.prestation),
+    tarif.amount,
+    tarif.tax_rate,
+    tarif.effective_from,
+    tarif.created_at,
+  ])
+  const { items: displayedTarifs, currentPage } = paginateTableRows(
+    filteredTarifs,
+    page,
+    pageSize,
+  )
+
   return (
     <section>
       <div className="dashboard-page-header">
@@ -339,7 +362,20 @@ function PrestationTarifsPage() {
       {tarifs.length === 0 ? (
         <p>Aucun tarif de prestation.</p>
       ) : (
-        <div className="table-shell">
+        <>
+        <TableSearch
+          value={search}
+          onChange={(value) => {
+            setSearch(value)
+            setPage(1)
+          }}
+          label="Rechercher un tarif de prestation"
+          placeholder="Rechercher par prestation, montant, taxe ou date…"
+        />
+        {filteredTarifs.length === 0 ? (
+          <p>Aucun tarif correspondant.</p>
+        ) : (
+        <TableShell>
           <table>
             <thead>
               <tr>
@@ -352,7 +388,7 @@ function PrestationTarifsPage() {
               </tr>
             </thead>
             <tbody>
-              {tarifs.map((tarif) => (
+              {displayedTarifs.map((tarif) => (
                 <tr key={tarif.id}>
                   <td>{prestationLabel(tarif.prestation)}</td>
                   <td>{formatAmount(tarif.amount)}</td>
@@ -382,7 +418,22 @@ function PrestationTarifsPage() {
               ))}
             </tbody>
           </table>
-        </div>
+        </TableShell>
+        )}
+        {filteredTarifs.length > 0 && (
+          <TablePagination
+            page={currentPage}
+            pageSize={pageSize}
+            totalItems={filteredTarifs.length}
+            onPageChange={setPage}
+            onPageSizeChange={(size) => {
+              setPageSize(size)
+              setPage(1)
+            }}
+            label="des tarifs"
+          />
+        )}
+        </>
       )}
     </section>
   )

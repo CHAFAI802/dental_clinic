@@ -1,3 +1,5 @@
+import TableShell from '../../../components/dashboard/TableShell.jsx'
+import { SearchableTable } from '../../../components/dashboard/TableControls.jsx'
 import {
   DESTRUCTION_STATUS_LABELS,
   destructionStatusBadge,
@@ -54,7 +56,25 @@ function InventoryMovementsPanel({ items, suppliers, entries, exits, destruction
       {sortedEntries.length === 0 ? (
         <p className="muted">Aucune entrée de stock.</p>
       ) : (
-        <div className="table-shell doc-list">
+        <SearchableTable
+          rows={sortedEntries}
+          getSearchValues={(entry) => [
+            entry.id,
+            itemLabel(items, entry.item),
+            formatDateTime(entry.received_at),
+            supplierLabel(suppliers, entry.supplier),
+            entry.quantity,
+            entry.remaining_quantity,
+            entry.total_cost,
+            entry.batch_number,
+            entry.expiration_date,
+          ]}
+          searchLabel="Rechercher une entrée de stock"
+          placeholder="Rechercher par article, fournisseur, lot ou date…"
+          emptyMessage="Aucune entrée correspondant à la recherche."
+          paginationLabel="des entrées de stock"
+          renderTable={(displayedEntries) => (
+        <TableShell className="doc-list">
           <table>
             <caption className="sr-only">Entrées de stock enregistrées</caption>
             <thead>
@@ -71,7 +91,7 @@ function InventoryMovementsPanel({ items, suppliers, entries, exits, destruction
               </tr>
             </thead>
             <tbody>
-              {sortedEntries.map((entry) => (
+              {displayedEntries.map((entry) => (
                 <tr key={entry.id}>
                   <td data-label="N°">{entry.id}</td>
                   <td data-label="Article">{itemLabel(items, entry.item)}</td>
@@ -88,14 +108,32 @@ function InventoryMovementsPanel({ items, suppliers, entries, exits, destruction
               ))}
             </tbody>
           </table>
-        </div>
+        </TableShell>
+          )}
+        />
       )}
 
       <h3>Sorties</h3>
       {sortedExits.length === 0 ? (
         <p className="muted">Aucune sortie de stock.</p>
       ) : (
-        <div className="table-shell doc-list">
+        <SearchableTable
+          rows={sortedExits}
+          getSearchValues={(exit) => [
+            exit.id,
+            itemLabel(items, exit.item),
+            formatDateTime(exit.exited_at),
+            exit.quantity,
+            exit.usage_type,
+            exit.selection_mode,
+            exit.comments,
+          ]}
+          searchLabel="Rechercher une sortie de stock"
+          placeholder="Rechercher par article, motif, mode ou date…"
+          emptyMessage="Aucune sortie correspondant à la recherche."
+          paginationLabel="des sorties de stock"
+          renderTable={(displayedExits) => (
+        <TableShell className="doc-list">
           <table>
             <caption className="sr-only">Sorties de stock enregistrées</caption>
             <thead>
@@ -110,7 +148,7 @@ function InventoryMovementsPanel({ items, suppliers, entries, exits, destruction
               </tr>
             </thead>
             <tbody>
-              {sortedExits.map((exit) => (
+              {displayedExits.map((exit) => (
                 <tr key={exit.id}>
                   <td data-label="N°">{exit.id}</td>
                   <td data-label="Article">{itemLabel(items, exit.item)}</td>
@@ -123,14 +161,36 @@ function InventoryMovementsPanel({ items, suppliers, entries, exits, destruction
               ))}
             </tbody>
           </table>
-        </div>
+        </TableShell>
+          )}
+        />
       )}
 
       <h3>Destructions</h3>
       {sortedDestructions.length === 0 ? (
         <p className="muted">Aucun document de destruction.</p>
       ) : (
-        <div className="table-shell doc-list">
+        <SearchableTable
+          rows={sortedDestructions}
+          getSearchValues={(destruction) => {
+            const lines = destructionLines.filter(
+              (line) => String(line.destruction) === String(destruction.id),
+            )
+            return [
+              destruction.id,
+              destruction.status,
+              formatDateTime(destruction.destroyed_at),
+              destruction.reason,
+              destruction.destroyed_by,
+              ...lines.map((line) => itemLabel(items, line.item)),
+            ]
+          }}
+          searchLabel="Rechercher une destruction de stock"
+          placeholder="Rechercher par motif, article, statut ou date…"
+          emptyMessage="Aucune destruction correspondant à la recherche."
+          paginationLabel="des destructions de stock"
+          renderTable={(displayedDestructions) => (
+        <TableShell className="doc-list">
           <table>
             <caption className="sr-only">Documents de destruction enregistrés</caption>
             <thead>
@@ -144,7 +204,7 @@ function InventoryMovementsPanel({ items, suppliers, entries, exits, destruction
               </tr>
             </thead>
             <tbody>
-              {sortedDestructions.map((destruction) => {
+              {displayedDestructions.map((destruction) => {
                 const badge = destructionStatusBadge(destruction.status)
                 const lines = destructionLines.filter(
                   (line) => String(line.destruction) === String(destruction.id),
@@ -190,7 +250,9 @@ function InventoryMovementsPanel({ items, suppliers, entries, exits, destruction
               })}
             </tbody>
           </table>
-        </div>
+        </TableShell>
+          )}
+        />
       )}
 
       <p className="doc-warning">

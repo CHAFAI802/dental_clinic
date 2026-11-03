@@ -13,14 +13,12 @@ const SECTIONS = [
     id: 'prestation-categories',
     label: 'Catégories de prestations',
     description: 'Créer, modifier et activer les catégories du catalogue.',
-    source: '/api/prestation-categories/',
     to: '/dashboard/settings/prestation-categories',
   },
   {
     id: 'prestations',
     label: 'Prestations',
     description: 'Gérer les actes proposés et leur rattachement à une catégorie.',
-    source: '/api/prestations/',
     to: '/dashboard/settings/prestations',
   },
   {

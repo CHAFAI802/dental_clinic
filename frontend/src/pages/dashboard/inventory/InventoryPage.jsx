@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { apiGet } from '../../../api/client.js'
+import TableShell from '../../../components/dashboard/TableShell.jsx'
+import {
+  paginateTableRows,
+  TablePagination,
+} from '../../../components/dashboard/TableControls.jsx'
 import { useAuth } from '../../../context/AuthContext.jsx'
 import InventoryAlertsPanel from './InventoryAlertsPanel.jsx'
 import InventoryItemForm from './InventoryItemForm.jsx'
@@ -93,6 +98,8 @@ function InventoryPage() {
   const [selectedItemId, setSelectedItemId] = useState(null)
   const [search, setSearch] = useState('')
   const [familyFilter, setFamilyFilter] = useState('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
   const [isCreateFormOpen, setIsCreateFormOpen] = useState(false)
 
   const load = useCallback(async () => {
@@ -145,11 +152,23 @@ function InventoryPage() {
       if (familyFilter && String(item.family) !== String(familyFilter)) return false
       if (!query) return true
 
-      return [item.sku, item.name, item.description].some((value) =>
+      return [
+        item.id,
+        item.sku,
+        item.name,
+        item.description,
+        familyLabel(families, item.family),
+        unitLabel(units, item.unit),
+      ].some((value) =>
         normalizeSearch(value).includes(query),
       )
     })
-  }, [items, search, familyFilter])
+  }, [items, search, familyFilter, families, units])
+  const { items: displayedItems, currentPage } = paginateTableRows(
+    filteredItems,
+    page,
+    pageSize,
+  )
 
   const selectedItem =
     items.find((item) => String(item.id) === String(selectedItemId)) || null
@@ -266,14 +285,20 @@ function InventoryPage() {
             <input
               type="search"
               value={search}
-              onChange={(event) => setSearch(event.target.value)}
+              onChange={(event) => {
+                setSearch(event.target.value)
+                setPage(1)
+              }}
               placeholder="Rechercher par SKU, nom ou description…"
               aria-label="Rechercher un article"
             />
 
             <select
               value={familyFilter}
-              onChange={(event) => setFamilyFilter(event.target.value)}
+              onChange={(event) => {
+                setFamilyFilter(event.target.value)
+                setPage(1)
+              }}
               aria-label="Filtrer par famille"
             >
               <option value="">Toutes les familles</option>
@@ -293,7 +318,8 @@ function InventoryPage() {
         ) : filteredItems.length === 0 ? (
           <p>Aucun article correspondant.</p>
         ) : (
-          <div className="table-shell doc-list">
+          <>
+          <TableShell className="doc-list">
             <table>
               <caption className="sr-only">Catalogue des articles d’inventaire</caption>
               <thead>
@@ -309,7 +335,7 @@ function InventoryPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredItems.map((item) => (
+                {displayedItems.map((item) => (
                   <tr key={item.id}>
                     <td data-label="SKU">{item.sku || '-'}</td>
                     <td data-label="Nom">{item.name}</td>
@@ -342,7 +368,19 @@ function InventoryPage() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableShell>
+          <TablePagination
+            page={currentPage}
+            pageSize={pageSize}
+            totalItems={filteredItems.length}
+            onPageChange={setPage}
+            onPageSizeChange={(size) => {
+              setPageSize(size)
+              setPage(1)
+            }}
+            label="des articles d’inventaire"
+          />
+          </>
         )}
 
         {data.alerts.length > 0 && (

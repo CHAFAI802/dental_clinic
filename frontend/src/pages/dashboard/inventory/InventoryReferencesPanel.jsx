@@ -1,6 +1,8 @@
 import { useState } from 'react'
 
 import { apiPatch, apiPost } from '../../../api/client.js'
+import TableShell from '../../../components/dashboard/TableShell.jsx'
+import { SearchableTable } from '../../../components/dashboard/TableControls.jsx'
 import { activeBadge, categoryLabel, formatDateTime, splitApiErrors } from './helpers.js'
 
 /*
@@ -584,7 +586,15 @@ function InventoryReferencesPanel({
       {units.length === 0 ? (
         <p className="muted">Aucune unité.</p>
       ) : (
-        <div className="table-shell doc-list">
+        <SearchableTable
+          rows={units}
+          getSearchValues={(unit) => [unit.name, unit.symbol, unit.is_active ? 'actif' : 'inactif', unit.created_at]}
+          searchLabel="Rechercher une unité"
+          placeholder="Rechercher par nom, symbole ou statut…"
+          emptyMessage="Aucune unité correspondante."
+          paginationLabel="des unités"
+          renderTable={(displayedUnits) => (
+        <TableShell className="doc-list">
           <table>
             <caption className="sr-only">Unités de l’inventaire</caption>
             <thead>
@@ -597,7 +607,7 @@ function InventoryReferencesPanel({
               </tr>
             </thead>
             <tbody>
-              {units.map((unit) => (
+              {displayedUnits.map((unit) => (
                 <tr key={unit.id}>
                   <td data-label="Nom">{unit.name}</td>
                   <td data-label="Symbole">{unit.symbol}</td>
@@ -622,7 +632,9 @@ function InventoryReferencesPanel({
               ))}
             </tbody>
           </table>
-        </div>
+        </TableShell>
+          )}
+        />
       )}
 
       {/* ---------- Fournisseurs ---------- */}
@@ -659,7 +671,21 @@ function InventoryReferencesPanel({
       {suppliers.length === 0 ? (
         <p className="muted">Aucun fournisseur.</p>
       ) : (
-        <div className="table-shell doc-list">
+        <SearchableTable
+          rows={suppliers}
+          getSearchValues={(supplier) => [
+            supplier.name,
+            supplier.contact_name,
+            supplier.phone,
+            supplier.email,
+            supplier.address,
+          ]}
+          searchLabel="Rechercher un fournisseur"
+          placeholder="Rechercher par nom, contact, téléphone ou email…"
+          emptyMessage="Aucun fournisseur correspondant."
+          paginationLabel="des fournisseurs"
+          renderTable={(displayedSuppliers) => (
+        <TableShell className="doc-list">
           <table>
             <caption className="sr-only">Fournisseurs de l’inventaire</caption>
             <thead>
@@ -672,7 +698,7 @@ function InventoryReferencesPanel({
               </tr>
             </thead>
             <tbody>
-              {suppliers.map((supplier) => (
+              {displayedSuppliers.map((supplier) => (
                 <tr key={supplier.id}>
                   <td data-label="Nom">{supplier.name}</td>
                   <td data-label="Contact">{supplier.contact_name || '-'}</td>
@@ -693,7 +719,9 @@ function InventoryReferencesPanel({
               ))}
             </tbody>
           </table>
-        </div>
+        </TableShell>
+          )}
+        />
       )}
 
       {/* ---------- Catégories ---------- */}
@@ -731,7 +759,20 @@ function InventoryReferencesPanel({
       ) : categories.length === 0 ? (
         <p className="muted">Aucune catégorie.</p>
       ) : (
-        <div className="table-shell doc-list">
+        <SearchableTable
+          rows={categories}
+          getSearchValues={(category) => [
+            category.code,
+            category.name,
+            category.description,
+            category.parent ? categoryLabel(categories, category.parent) : '',
+          ]}
+          searchLabel="Rechercher une catégorie d’inventaire"
+          placeholder="Rechercher par code, nom ou description…"
+          emptyMessage="Aucune catégorie correspondante."
+          paginationLabel="des catégories d’inventaire"
+          renderTable={(displayedCategories) => (
+        <TableShell className="doc-list">
           <table>
             <caption className="sr-only">Catégories d’inventaire</caption>
             <thead>
@@ -743,7 +784,7 @@ function InventoryReferencesPanel({
               </tr>
             </thead>
             <tbody>
-              {categories.map((category) => (
+              {displayedCategories.map((category) => (
                 <tr key={category.id}>
                   <td data-label="Code">{category.code || '-'}</td>
                   <td data-label="Nom">{category.name}</td>
@@ -755,7 +796,9 @@ function InventoryReferencesPanel({
               ))}
             </tbody>
           </table>
-        </div>
+        </TableShell>
+          )}
+        />
       )}
 
       {/* ---------- Familles ---------- */}
@@ -795,7 +838,21 @@ function InventoryReferencesPanel({
       ) : families.length === 0 ? (
         <p className="muted">Aucune famille.</p>
       ) : (
-        <div className="table-shell doc-list">
+        <SearchableTable
+          rows={families}
+          getSearchValues={(family) => [
+            family.code,
+            family.name,
+            categoryLabel(categories, family.category),
+            family.is_active ? 'actif' : 'inactif',
+            family.next_sku_number,
+          ]}
+          searchLabel="Rechercher une famille"
+          placeholder="Rechercher par code, nom ou catégorie…"
+          emptyMessage="Aucune famille correspondante."
+          paginationLabel="des familles"
+          renderTable={(displayedFamilies) => (
+        <TableShell className="doc-list">
           <table>
             <caption className="sr-only">Familles d’inventaire</caption>
             <thead>
@@ -808,7 +865,7 @@ function InventoryReferencesPanel({
               </tr>
             </thead>
             <tbody>
-              {families.map((family) => (
+              {displayedFamilies.map((family) => (
                 <tr key={family.id}>
                   <td data-label="Code">{family.code}</td>
                   <td data-label="Nom">{family.name}</td>
@@ -826,7 +883,9 @@ function InventoryReferencesPanel({
               ))}
             </tbody>
           </table>
-        </div>
+        </TableShell>
+          )}
+        />
       )}
     </section>
   )

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 
 import { apiPost } from '../../../api/client.js'
+import TableShell from '../../../components/dashboard/TableShell.jsx'
 import {
   SELECTION_MODE_LABELS,
   formatAmount,
@@ -467,7 +468,7 @@ function StockExitForm({ items, defaultItemId, onSaved, onCancel }) {
           </div>
 
           {selectedLines.length > 0 && (
-            <div className="table-shell" style={{ marginTop: 'var(--space-2)' }}>
+            <TableShell style={{ marginTop: 'var(--space-2)' }}>
               <table style={{ minWidth: '100%' }}>
                 <thead>
                   <tr>
@@ -500,7 +501,7 @@ function StockExitForm({ items, defaultItemId, onSaved, onCancel }) {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TableShell>
           )}
         </div>
       )}

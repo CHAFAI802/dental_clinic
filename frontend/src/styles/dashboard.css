@@ -185,12 +185,47 @@
   background: var(--color-accent-soft);
 }
 
+.table-scroll-container {
+  width: 100%;
+  min-width: 0;
+}
+
 .table-shell {
   width: 100%;
+  min-width: 0;
   overflow-x: auto;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   background: var(--color-surface);
+}
+
+.table-top-scrollbar {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  width: 100%;
+  height: 14px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  border: 1px solid var(--color-border);
+  border-bottom: 0;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  background: var(--color-surface);
+  scrollbar-width: thin;
+  overscroll-behavior-x: contain;
+}
+
+.table-top-scrollbar > div {
+  pointer-events: none;
+}
+
+.table-shell-scrollable {
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+}
+
+.table-shell-scrollable::-webkit-scrollbar {
+  display: none;
 }
 
 .table-shell table {
@@ -216,6 +251,44 @@
   display: flex;
   gap: 0.75rem;
   align-items: center;
+}
+
+.table-search {
+  margin-bottom: var(--space-3);
+}
+
+.table-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.table-page-size {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.table-page-size select {
+  width: auto;
+  min-width: 4.5rem;
+}
+
+.table-pagination-status {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: var(--weight-medium);
+}
+
+.table-pagination .btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
 }
 
 .danger-link {
@@ -508,10 +581,7 @@
 }
 
 /*
- * Module Rendez-vous : couleurs conditionnelles des lignes et pagination
- * de la liste. Réutilise les jetons d'état de variables.css et les classes
- * existantes (.btn, .btn-outline, .btn-sm) pour rester cohérent avec le
- * reste du tableau (.table-shell).
+ * Module Rendez-vous : couleurs conditionnelles des lignes de la liste.
  *
  *   - statut completed                        → fond vert ;
  *   - statut confirmed avec end_at passé      → fond rouge (raté) ;
@@ -524,32 +594,4 @@
 
 .appointment-row.is-missed {
   background: var(--color-danger-soft);
-}
-
-.appointments-pagination {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-3);
-  margin-top: var(--space-4);
-}
-
-.appointments-pagination-status {
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
-  font-weight: var(--weight-medium);
-}
-
-/* Commandes inutilisables (première / dernière page) : état désactivé
-   explicite, sans effet de survol ni décalage. */
-.appointments-pagination .btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  transform: none;
-}
-
-.appointments-pagination .btn:disabled:hover {
-  background: transparent;
-  border-color: var(--color-border-strong);
 }

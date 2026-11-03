@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { apiGet, apiPatch } from '../../../api/client.js'
+import TableShell from '../../../components/dashboard/TableShell.jsx'
+import {
+  filterTableRows,
+  paginateTableRows,
+  TablePagination,
+  TableSearch,
+} from '../../../components/dashboard/TableControls.jsx'
 import { useAuth } from '../../../context/AuthContext.jsx'
 import {
   formatAmount,
@@ -37,6 +44,9 @@ function InvoicesPage() {
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
   const [saveSuccess, setSaveSuccess] = useState('')
+  const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
 
   const detailRef = useRef(null)
 
@@ -124,6 +134,22 @@ function InvoicesPage() {
   const selectedCreditNotes = useMemo(
     () => creditNotes.filter((note) => note.invoice === selectedId),
     [creditNotes, selectedId],
+  )
+
+  const filteredInvoices = filterTableRows(invoices, search, (invoice) => [
+    invoice.reference_number,
+    patientLabel(invoice.patient, patientLabels),
+    formatDate(invoice.issued_at),
+    formatDate(invoice.due_date),
+    invoice.status,
+    invoice.total_amount,
+    invoice.paid_amount,
+    invoice.balance_due,
+  ])
+  const { items: displayedInvoices, currentPage } = paginateTableRows(
+    filteredInvoices,
+    page,
+    pageSize,
   )
 
   useEffect(() => {
@@ -232,7 +258,20 @@ function InvoicesPage() {
       {invoices.length === 0 ? (
         <p>Aucune facture.</p>
       ) : (
-        <div className="table-shell">
+        <>
+        <TableSearch
+          value={search}
+          onChange={(value) => {
+            setSearch(value)
+            setPage(1)
+          }}
+          label="Rechercher une facture"
+          placeholder="Rechercher par référence, patient, statut ou montant…"
+        />
+        {filteredInvoices.length === 0 ? (
+          <p>Aucune facture correspondante.</p>
+        ) : (
+        <TableShell>
           <table>
             <thead>
               <tr>
@@ -248,7 +287,7 @@ function InvoicesPage() {
               </tr>
             </thead>
             <tbody>
-              {invoices.map((invoice) => {
+              {displayedInvoices.map((invoice) => {
                 const badge = invoiceStatusBadge(invoice.status)
                 const hasBalance = Number(invoice.balance_due) > 0
 
@@ -282,7 +321,22 @@ function InvoicesPage() {
               })}
             </tbody>
           </table>
-        </div>
+        </TableShell>
+        )}
+        {filteredInvoices.length > 0 && (
+          <TablePagination
+            page={currentPage}
+            pageSize={pageSize}
+            totalItems={filteredInvoices.length}
+            onPageChange={setPage}
+            onPageSizeChange={(size) => {
+              setPageSize(size)
+              setPage(1)
+            }}
+            label="des factures"
+          />
+        )}
+        </>
       )}
 
       {selectedInvoice && (
@@ -355,7 +409,23 @@ function InvoicesPage() {
           ) : selectedLines.length === 0 ? (
             <p>Aucune ligne de facture.</p>
           ) : (
-            <div className="table-shell">
+            <SearchableTable
+              rows={selectedLines}
+              getSearchValues={(line) => [
+                line.description,
+                line.quantity,
+                line.unit_price,
+                line.tax_rate,
+                line.subtotal,
+                line.tax_amount,
+                line.total,
+              ]}
+              searchLabel="Rechercher une ligne de facture"
+              placeholder="Rechercher par description ou montant…"
+              emptyMessage="Aucune ligne correspondant à la recherche."
+              paginationLabel="des lignes de facture"
+              renderTable={(displayedLines) => (
+            <TableShell>
               <table>
                 <thead>
                   <tr>
@@ -369,7 +439,7 @@ function InvoicesPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {selectedLines.map((line) => (
+                  {displayedLines.map((line) => (
                     <tr key={line.id}>
                       <td>{line.description}</td>
                       <td>{formatAmount(line.quantity)}</td>
@@ -382,7 +452,9 @@ function InvoicesPage() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TableShell>
+              )}
+            />
           )}
 
           <h4>Paiements</h4>
@@ -391,7 +463,22 @@ function InvoicesPage() {
           ) : selectedPayments.length === 0 ? (
             <p>Aucun paiement.</p>
           ) : (
-            <div className="table-shell">
+            <SearchableTable
+              rows={selectedPayments}
+              getSearchValues={(payment) => [
+                formatDateTime(payment.payment_at),
+                payment.amount,
+                methodLabel(payment.method),
+                payment.reference,
+                paymentStatusLabel(payment.status),
+                payment.paid_by,
+              ]}
+              searchLabel="Rechercher un paiement de cette facture"
+              placeholder="Rechercher par date, référence, méthode ou statut…"
+              emptyMessage="Aucun paiement correspondant à la recherche."
+              paginationLabel="des paiements de cette facture"
+              renderTable={(displayedPayments) => (
+            <TableShell>
               <table>
                 <thead>
                   <tr>
@@ -404,7 +491,7 @@ function InvoicesPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {selectedPayments.map((payment) => (
+                  {displayedPayments.map((payment) => (
                     <tr key={payment.id}>
                       <td>{formatDateTime(payment.payment_at)}</td>
                       <td>{formatAmount(payment.amount)}</td>
@@ -420,7 +507,9 @@ function InvoicesPage() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TableShell>
+              )}
+            />
           )}
 
           <h4>Avoirs</h4>
@@ -429,7 +518,20 @@ function InvoicesPage() {
           ) : selectedCreditNotes.length === 0 ? (
             <p>Aucun avoir.</p>
           ) : (
-            <div className="table-shell">
+            <SearchableTable
+              rows={selectedCreditNotes}
+              getSearchValues={(note) => [
+                formatDate(note.issued_at),
+                note.amount,
+                note.reason,
+                paymentStatusLabel(note.status),
+              ]}
+              searchLabel="Rechercher un avoir"
+              placeholder="Rechercher par motif, montant ou statut…"
+              emptyMessage="Aucun avoir correspondant à la recherche."
+              paginationLabel="des avoirs"
+              renderTable={(displayedNotes) => (
+            <TableShell>
               <table>
                 <thead>
                   <tr>
@@ -440,7 +542,7 @@ function InvoicesPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {selectedCreditNotes.map((note) => (
+                  {displayedNotes.map((note) => (
                     <tr key={note.id}>
                       <td>{formatDate(note.issued_at)}</td>
                       <td>{formatAmount(note.amount)}</td>
@@ -450,7 +552,9 @@ function InvoicesPage() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TableShell>
+              )}
+            />
           )}
 
           {canEditInvoice && (

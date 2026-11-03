@@ -1,11 +1,21 @@
 import { useEffect, useState } from 'react'
 
 import { apiGet } from '../../api/client.js'
+import TableShell from '../../components/dashboard/TableShell.jsx'
+import {
+  filterTableRows,
+  paginateTableRows,
+  TablePagination,
+  TableSearch,
+} from '../../components/dashboard/TableControls.jsx'
 
 function AuditLogsPage() {
   const [logs, setLogs] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
+  const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
 
   useEffect(() => {
     let isMounted = true
@@ -54,17 +64,42 @@ function AuditLogsPage() {
     )
   }
 
-  const displayed = logs.slice(0, 100)
+  const filteredLogs = filterTableRows(logs, search, (log) => [
+    log.created_at,
+    log.action,
+    log.model_name,
+    log.object_id,
+    log.user,
+    log.ip_address,
+  ])
+  const { items: displayedLogs, currentPage } = paginateTableRows(
+    filteredLogs,
+    page,
+    pageSize,
+  )
 
   return (
     <section>
       <h2>Journal d’audit</h2>
-      <p>Entrées affichées : {displayed.length}{logs.length > displayed.length ? ` / ${logs.length}` : ''}</p>
+      <p>Entrées chargées : {logs.length}</p>
 
-      {displayed.length === 0 ? (
+      {logs.length === 0 ? (
         <p>Aucune entrée.</p>
       ) : (
-        <div className="table-shell">
+        <>
+        <TableSearch
+          value={search}
+          onChange={(value) => {
+            setSearch(value)
+            setPage(1)
+          }}
+          label="Rechercher dans le journal d’audit"
+          placeholder="Rechercher par action, modèle, utilisateur, IP ou date…"
+        />
+        {filteredLogs.length === 0 ? (
+          <p>Aucune entrée correspondant à la recherche.</p>
+        ) : (
+        <TableShell>
           <table>
             <thead>
               <tr>
@@ -77,7 +112,7 @@ function AuditLogsPage() {
               </tr>
             </thead>
             <tbody>
-              {displayed.map((log) => (
+              {displayedLogs.map((log) => (
                 <tr key={log.id}>
                   <td>{log.created_at}</td>
                   <td>{log.action}</td>
@@ -89,7 +124,22 @@ function AuditLogsPage() {
               ))}
             </tbody>
           </table>
-        </div>
+        </TableShell>
+        )}
+        {filteredLogs.length > 0 && (
+          <TablePagination
+            page={currentPage}
+            pageSize={pageSize}
+            totalItems={filteredLogs.length}
+            onPageChange={setPage}
+            onPageSizeChange={(size) => {
+              setPageSize(size)
+              setPage(1)
+            }}
+            label="du journal d’audit"
+          />
+        )}
+        </>
       )}
     </section>
   )

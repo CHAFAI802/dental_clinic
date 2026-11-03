@@ -2,6 +2,12 @@ import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 
 import { apiGet, apiPatch } from '../../../api/client.js'
+import TableShell from '../../../components/dashboard/TableShell.jsx'
+import {
+  filterTableRows,
+  paginateTableRows,
+  TablePagination,
+} from '../../../components/dashboard/TableControls.jsx'
 import { useAuth } from '../../../context/AuthContext.jsx'
 import DentistPatientPage from './DentistPatientPage.jsx'
 import PatientForm from './PatientForm.jsx'
@@ -25,13 +31,6 @@ function patientFullName(patient) {
   return name || (patient?.id ? `Patient #${patient.id}` : '-')
 }
 
-function normalizeSearch(value) {
-  return String(value ?? '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLocaleLowerCase()
-}
-
 function PatientsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const { user: currentUser } = useAuth()
@@ -46,6 +45,8 @@ function PatientsPage() {
   const [isListLoading, setIsListLoading] = useState(true)
   const [listError, setListError] = useState('')
   const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
 
   const [patient, setPatient] = useState(null)
   const [isDetailLoading, setIsDetailLoading] = useState(false)
@@ -151,22 +152,19 @@ function PatientsPage() {
   }
 
   const isDentistMode = currentUser?.role === 'dentist' && viewMode === 'dentist'
-  const filteredPatients = patients.filter((item) => {
-    const fullName = [item.first_name, item.middle_name, item.last_name]
-      .filter(Boolean)
-      .join(' ')
-    const searchableValues = [
+  const filteredPatients = filterTableRows(patients, search, (item) => [
       item.first_name,
+      item.middle_name,
       item.last_name,
       item.patient_code,
-      fullName,
-    ]
-    const normalizedSearch = normalizeSearch(search.trim())
-
-    return searchableValues.some((value) =>
-      normalizeSearch(value).includes(normalizedSearch),
-    )
-  })
+      patientFullName(item),
+      item.phone,
+    ])
+  const { items: displayedPatients, currentPage } = paginateTableRows(
+    filteredPatients,
+    page,
+    pageSize,
+  )
 
   if (isDentistMode && selectedId) {
     return <DentistPatientPage patientId={selectedId} onClose={closeDossier} />
@@ -244,7 +242,10 @@ function PatientsPage() {
         <input
           type="search"
           value={search}
-          onChange={(event) => setSearch(event.target.value)}
+          onChange={(event) => {
+            setSearch(event.target.value)
+            setPage(1)
+          }}
           placeholder="Rechercher par prénom, nom ou code patient..."
           aria-label="Rechercher dans les patients chargés"
         />
@@ -259,7 +260,8 @@ function PatientsPage() {
       ) : filteredPatients.length === 0 ? (
         <p>Aucun patient correspondant.</p>
       ) : (
-        <div className="table-shell">
+        <>
+        <TableShell>
           <table>
             <thead>
               <tr>
@@ -271,7 +273,7 @@ function PatientsPage() {
               </tr>
             </thead>
             <tbody>
-              {filteredPatients.map((item) => (
+              {displayedPatients.map((item) => (
                 <tr key={item.id}>
                   <td>{item.patient_code || '-'}</td>
                   <td>{item.last_name || '-'}</td>
@@ -290,7 +292,19 @@ function PatientsPage() {
               ))}
             </tbody>
           </table>
-        </div>
+        </TableShell>
+        <TablePagination
+          page={currentPage}
+          pageSize={pageSize}
+          totalItems={filteredPatients.length}
+          onPageChange={setPage}
+          onPageSizeChange={(size) => {
+            setPageSize(size)
+            setPage(1)
+          }}
+          label="des patients"
+        />
+        </>
       )}
     </section>
   )

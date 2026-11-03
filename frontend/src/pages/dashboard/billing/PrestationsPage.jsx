@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 
 import { apiDelete, apiGet, apiPatch, apiPost } from '../../../api/client.js'
+import TableShell from '../../../components/dashboard/TableShell.jsx'
+import {
+  filterTableRows,
+  paginateTableRows,
+  TablePagination,
+  TableSearch,
+} from '../../../components/dashboard/TableControls.jsx'
 import { useAuth } from '../../../context/AuthContext.jsx'
 import { activeBadge, formatDate } from './helpers.js'
 
@@ -46,6 +53,9 @@ function PrestationsPage() {
   const [deletingId, setDeletingId] = useState(null)
   const [actionError, setActionError] = useState('')
   const [actionSuccess, setActionSuccess] = useState('')
+  const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
 
   const load = async () => {
     setIsLoading(true)
@@ -224,6 +234,20 @@ function PrestationsPage() {
     )
   }
 
+  const filteredPrestations = filterTableRows(prestations, search, (prestation) => [
+    prestation.code,
+    prestation.label,
+    prestation.description,
+    categoryLabel(prestation.category),
+    prestation.is_active ? 'actif' : 'inactif',
+    prestation.created_at,
+  ])
+  const { items: displayedPrestations, currentPage } = paginateTableRows(
+    filteredPrestations,
+    page,
+    pageSize,
+  )
+
   return (
     <section>
       <div className="dashboard-page-header">
@@ -337,7 +361,20 @@ function PrestationsPage() {
       {prestations.length === 0 ? (
         <p>Aucune prestation.</p>
       ) : (
-        <div className="table-shell">
+        <>
+        <TableSearch
+          value={search}
+          onChange={(value) => {
+            setSearch(value)
+            setPage(1)
+          }}
+          label="Rechercher une prestation"
+          placeholder="Rechercher par code, libellé, catégorie ou description…"
+        />
+        {filteredPrestations.length === 0 ? (
+          <p>Aucune prestation correspondante.</p>
+        ) : (
+        <TableShell>
           <table>
             <thead>
               <tr>
@@ -351,7 +388,7 @@ function PrestationsPage() {
               </tr>
             </thead>
             <tbody>
-              {prestations.map((prestation) => {
+              {displayedPrestations.map((prestation) => {
                 const badge = activeBadge(prestation.is_active !== false)
 
                 return (
@@ -392,7 +429,22 @@ function PrestationsPage() {
               })}
             </tbody>
           </table>
-        </div>
+        </TableShell>
+        )}
+        {filteredPrestations.length > 0 && (
+          <TablePagination
+            page={currentPage}
+            pageSize={pageSize}
+            totalItems={filteredPrestations.length}
+            onPageChange={setPage}
+            onPageSizeChange={(size) => {
+              setPageSize(size)
+              setPage(1)
+            }}
+            label="des prestations"
+          />
+        )}
+        </>
       )}
     </section>
   )

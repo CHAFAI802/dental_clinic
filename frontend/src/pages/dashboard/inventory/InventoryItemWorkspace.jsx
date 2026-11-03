@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react'
 
+import TableShell from '../../../components/dashboard/TableShell.jsx'
+import { SearchableTable } from '../../../components/dashboard/TableControls.jsx'
 import InventoryItemForm from './InventoryItemForm.jsx'
 import StockDestructionForm from './StockDestructionForm.jsx'
 import StockEntryForm from './StockEntryForm.jsx'
@@ -409,7 +411,24 @@ function InventoryItemWorkspace({
           {itemEntries.length === 0 ? (
             <p className="muted">Aucune entrée enregistrée pour cet article.</p>
           ) : (
-            <div className="table-shell doc-list">
+            <SearchableTable
+              rows={itemEntries}
+              getSearchValues={(entry) => [
+                entry.id,
+                formatDateTime(entry.received_at),
+                supplierLabel(suppliers, entry.supplier),
+                entry.quantity,
+                entry.remaining_quantity,
+                entry.batch_number,
+                entry.expiration_date,
+                entry.comments,
+              ]}
+              searchLabel="Rechercher une entrée de cet article"
+              placeholder="Rechercher par fournisseur, lot ou date…"
+              emptyMessage="Aucune entrée correspondant à la recherche."
+              paginationLabel="des entrées de cet article"
+              renderTable={(displayedEntries) => (
+            <TableShell className="doc-list">
               <table>
                 <caption className="sr-only">
                   Entrées de stock de l’article {item.name}
@@ -430,7 +449,7 @@ function InventoryItemWorkspace({
                   </tr>
                 </thead>
                 <tbody>
-                  {itemEntries.map((entry) => (
+                  {displayedEntries.map((entry) => (
                     <tr key={entry.id}>
                       <td data-label="N°">{entry.id}</td>
                       <td data-label="Réception">{formatDateTime(entry.received_at)}</td>
@@ -451,7 +470,9 @@ function InventoryItemWorkspace({
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TableShell>
+              )}
+            />
           )}
         </section>
 
@@ -488,7 +509,22 @@ function InventoryItemWorkspace({
           {itemExits.length === 0 ? (
             <p className="muted">Aucune sortie enregistrée pour cet article.</p>
           ) : (
-            <div className="table-shell doc-list">
+            <SearchableTable
+              rows={itemExits}
+              getSearchValues={(exit) => [
+                exit.id,
+                formatDateTime(exit.exited_at),
+                exit.quantity,
+                exit.usage_type,
+                exit.selection_mode,
+                exit.comments,
+              ]}
+              searchLabel="Rechercher une sortie de cet article"
+              placeholder="Rechercher par motif, mode ou date…"
+              emptyMessage="Aucune sortie correspondant à la recherche."
+              paginationLabel="des sorties de cet article"
+              renderTable={(displayedExits) => (
+            <TableShell className="doc-list">
               <table>
                 <caption className="sr-only">
                   Sorties de stock de l’article {item.name}
@@ -505,7 +541,7 @@ function InventoryItemWorkspace({
                   </tr>
                 </thead>
                 <tbody>
-                  {itemExits.map((exit) => (
+                  {displayedExits.map((exit) => (
                     <tr key={exit.id}>
                       <td data-label="N°">{exit.id}</td>
                       <td data-label="Sortie">{formatDateTime(exit.exited_at)}</td>
@@ -530,7 +566,9 @@ function InventoryItemWorkspace({
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TableShell>
+              )}
+            />
           )}
 
           {selectedExit && (
@@ -546,7 +584,25 @@ function InventoryItemWorkspace({
               {selectedExitAllocations.length === 0 ? (
                 <p className="muted">Aucune allocation renvoyée par le serveur.</p>
               ) : (
-                <div className="table-shell doc-list">
+                <SearchableTable
+                  rows={selectedExitAllocations}
+                  getSearchValues={(allocation) => {
+                    const lot = entries.find(
+                      (entry) => String(entry.id) === String(allocation.stock_entry),
+                    )
+                    return [
+                      allocation.stock_entry,
+                      lot?.batch_number,
+                      allocation.quantity,
+                      lot?.expiration_date,
+                    ]
+                  }}
+                  searchLabel="Rechercher une allocation de lot"
+                  placeholder="Rechercher par numéro de lot ou quantité…"
+                  emptyMessage="Aucune allocation correspondant à la recherche."
+                  paginationLabel="des allocations"
+                  renderTable={(displayedAllocations) => (
+                <TableShell className="doc-list">
                   <table>
                     <caption className="sr-only">
                       Allocations de lots de la sortie {selectedExit.id}
@@ -560,7 +616,7 @@ function InventoryItemWorkspace({
                       </tr>
                     </thead>
                     <tbody>
-                      {selectedExitAllocations.map((allocation) => {
+                      {displayedAllocations.map((allocation) => {
                         const lot = entries.find(
                           (entry) => String(entry.id) === String(allocation.stock_entry),
                         )
@@ -577,7 +633,9 @@ function InventoryItemWorkspace({
                       })}
                     </tbody>
                   </table>
-                </div>
+                </TableShell>
+                  )}
+                />
               )}
             </div>
           )}
@@ -617,7 +675,23 @@ function InventoryItemWorkspace({
           {itemLines.length === 0 ? (
             <p className="muted">Aucune ligne de destruction pour cet article.</p>
           ) : (
-            <div className="table-shell doc-list">
+            <SearchableTable
+              rows={itemLines}
+              getSearchValues={(line) => [
+                line.destruction,
+                line.destruction_details?.status,
+                formatDateTime(line.destruction_details?.destroyed_at),
+                line.destruction_details?.reason,
+                line.stock_entry,
+                line.quantity,
+                line.destruction_details?.destroyed_by,
+              ]}
+              searchLabel="Rechercher une ligne de destruction"
+              placeholder="Rechercher par motif, statut ou document…"
+              emptyMessage="Aucune ligne correspondant à la recherche."
+              paginationLabel="des lignes de destruction"
+              renderTable={(displayedLines) => (
+            <TableShell className="doc-list">
               <table>
                 <caption className="sr-only">
                   Lignes de destruction de l’article {item.name}
@@ -634,7 +708,7 @@ function InventoryItemWorkspace({
                   </tr>
                 </thead>
                 <tbody>
-                  {itemLines.map((line) => {
+                  {displayedLines.map((line) => {
                     const destruction = line.destruction_details
                     const badge = destructionStatusBadge(destruction?.status)
                     return (
@@ -666,7 +740,9 @@ function InventoryItemWorkspace({
                   })}
                 </tbody>
               </table>
-            </div>
+            </TableShell>
+              )}
+            />
           )}
 
           <p className="doc-warning">

@@ -2,20 +2,19 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { apiGet, apiPost } from '../../../api/client.js'
+import TableShell from '../../../components/dashboard/TableShell.jsx'
+import {
+  filterTableRows,
+  paginateTableRows,
+  TablePagination,
+  TableSearch,
+} from '../../../components/dashboard/TableControls.jsx'
 import { useAuth } from '../../../context/AuthContext.jsx'
 import { getPatientDossierParams } from '../patientNavigation.js'
 import {
   getAppointmentToneClass,
-  paginateAppointments,
   sortAppointmentsDesc,
 } from './helpers.js'
-
-function normalizeSearch(value) {
-  return String(value ?? '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLocaleLowerCase()
-}
 
 function AppointmentsPage() {
   const { user: currentUser } = useAuth()
@@ -25,6 +24,7 @@ function AppointmentsPage() {
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
   const [validatingId, setValidatingId] = useState(null)
   const [deletingId, setDeletingId] = useState(null)
 
@@ -90,27 +90,29 @@ function AppointmentsPage() {
     return true
   })
 
-  const filteredAppointments = visibleAppointments.filter((appointment) => {
-    const searchableValues = [
+  const filteredAppointments = filterTableRows(
+    visibleAppointments,
+    search,
+    (appointment) => [
+      appointment.id,
       appointment.patient_code,
       appointment.patient_name,
       appointment.practitioner_name,
       appointment.status,
       appointment.start_at,
       appointment.end_at,
-    ]
-
-    return searchableValues.some((value) =>
-      normalizeSearch(value).includes(normalizeSearch(search.trim())),
-    )
-  })
+    ],
+  )
 
   // Liste : ordre décroissant par start_at (les plus récents d'abord),
   // puis pagination frontend (l'API renvoie un tableau non paginé).
   // Le calendrier n'existe pas : la teinte s'applique aux lignes de ce tableau.
   const sortedAppointments = sortAppointmentsDesc(filteredAppointments)
-  const { items: displayedAppointments, currentPage, totalPages } =
-    paginateAppointments(sortedAppointments, page)
+  const { items: displayedAppointments, currentPage } = paginateTableRows(
+    sortedAppointments,
+    page,
+    pageSize,
+  )
 
   const validateAppointment = async (appointmentId) => {
     setValidatingId(appointmentId)
@@ -192,25 +194,22 @@ function AppointmentsPage() {
 
       {error && <p className="error-text">{error}</p>}
 
-      <div className="form-shell">
-        <input
-          type="search"
-          value={search}
-          onChange={(event) => {
-            setSearch(event.target.value)
-            setPage(1)
-          }}
-          placeholder="Rechercher un rendez-vous par patient, code ou praticien..."
-          aria-label="Rechercher un rendez-vous par patient, code ou praticien"
-        />
-      </div>
+      <TableSearch
+        value={search}
+        onChange={(value) => {
+          setSearch(value)
+          setPage(1)
+        }}
+        placeholder="Rechercher un rendez-vous par patient, code, praticien, statut ou date…"
+        label="Rechercher un rendez-vous par patient, code, praticien, statut ou date"
+      />
 
       {sortedAppointments.length === 0 ? (
         <p>
           {search.trim() ? 'Aucun rendez-vous correspondant.' : 'Aucun rendez-vous.'}
         </p>
       ) : (
-        <div className="table-shell">
+        <TableShell>
           <table>
             <thead>
               <tr>
@@ -289,37 +288,24 @@ function AppointmentsPage() {
               ))}
             </tbody>
           </table>
-        </div>
+        </TableShell>
       )}
 
       {sortedAppointments.length > 0 && (
-        <nav className="appointments-pagination" aria-label="Pagination des rendez-vous">
-          <button
-            type="button"
-            className="btn btn-outline btn-sm"
-            onClick={() => setPage(currentPage - 1)}
-            disabled={currentPage <= 1}
-          >
-            Page précédente
-          </button>
-
-          <span className="appointments-pagination-status" aria-live="polite">
-            Page {currentPage} / {totalPages}
-          </span>
-
-          <button
-            type="button"
-            className="btn btn-outline btn-sm"
-            onClick={() => setPage(currentPage + 1)}
-            disabled={currentPage >= totalPages}
-          >
-            Page suivante
-          </button>
-        </nav>
+        <TablePagination
+          page={currentPage}
+          pageSize={pageSize}
+          totalItems={sortedAppointments.length}
+          onPageChange={setPage}
+          onPageSizeChange={(size) => {
+            setPageSize(size)
+            setPage(1)
+          }}
+          label="des rendez-vous"
+        />
       )}
     </section>
   )
 }
 
 export default AppointmentsPage
-

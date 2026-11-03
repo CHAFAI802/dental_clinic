@@ -1,3 +1,5 @@
+import TableShell from '../../../components/dashboard/TableShell.jsx'
+import { SearchableTable } from '../../../components/dashboard/TableControls.jsx'
 import { alertBadge, formatAmount, formatDateTime, itemLabel } from './helpers.js'
 
 /*
@@ -34,7 +36,20 @@ function InventoryAlertsPanel({ alerts, items }) {
       {sorted.length === 0 ? (
         <p>Aucune alerte de stock.</p>
       ) : (
-        <div className="table-shell doc-list">
+        <SearchableTable
+          rows={sorted}
+          getSearchValues={(alert) => [
+            itemLabel(items, alert.item),
+            alert.alert_type,
+            formatAmount(alert.current_quantity),
+            formatDateTime(alert.created_at),
+          ]}
+          searchLabel="Rechercher une alerte de stock"
+          placeholder="Rechercher par article, type ou date…"
+          emptyMessage="Aucune alerte correspondant à la recherche."
+          paginationLabel="des alertes de stock"
+          renderTable={(displayedAlerts) => (
+        <TableShell className="doc-list">
           <table>
             <caption className="sr-only">Alertes de stock renvoyées par le serveur</caption>
             <thead>
@@ -47,7 +62,7 @@ function InventoryAlertsPanel({ alerts, items }) {
               </tr>
             </thead>
             <tbody>
-              {sorted.map((alert) => {
+              {displayedAlerts.map((alert) => {
                 const badge = alertBadge(alert.alert_type)
                 return (
                   <tr key={alert.id}>
@@ -69,7 +84,9 @@ function InventoryAlertsPanel({ alerts, items }) {
               })}
             </tbody>
           </table>
-        </div>
+        </TableShell>
+          )}
+        />
       )}
 
       <p className="muted">

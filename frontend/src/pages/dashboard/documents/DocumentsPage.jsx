@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
 
 import { apiGet, apiPatch, apiPost } from '../../../api/client.js'
+import TableShell from '../../../components/dashboard/TableShell.jsx'
+import {
+  filterTableRows,
+  paginateTableRows,
+  TablePagination,
+  TableSearch,
+} from '../../../components/dashboard/TableControls.jsx'
 import { useAuth } from '../../../context/AuthContext.jsx'
 import DocumentTemplateForm from './DocumentTemplateForm.jsx'
 import { activeBadge, formatDateTime, mediaFileUrl, requestErrorMessage, splitApiErrors } from './helpers.js'
@@ -39,6 +46,23 @@ function DocumentsPage() {
   const [actionSuccess, setActionSuccess] = useState('')
   const [isDeactivatingId, setIsDeactivatingId] = useState(null)
   const [isApprovingId, setIsApprovingId] = useState(null)
+  const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+
+  const filteredTemplates = filterTableRows(templates, search, (template) => [
+    template.name,
+    template.description,
+    template.file,
+    template.is_active === false ? 'inactif désactivé' : 'actif',
+    template.is_approved ? 'approuvé' : 'non approuvé',
+    template.updated_at,
+  ])
+  const { items: displayedTemplates, currentPage } = paginateTableRows(
+    filteredTemplates,
+    page,
+    pageSize,
+  )
 
   const load = useCallback(async () => {
     setIsLoading(true)
@@ -249,8 +273,35 @@ function DocumentsPage() {
       )
     }
 
+    if (filteredTemplates.length === 0) {
+      return (
+        <>
+          <TableSearch
+            value={search}
+            onChange={(value) => {
+              setSearch(value)
+              setPage(1)
+            }}
+            label="Rechercher un modèle de document"
+            placeholder="Rechercher par nom, description, état ou date…"
+          />
+          <p>Aucun modèle correspondant.</p>
+        </>
+      )
+    }
+
     return (
-      <div className="table-shell doc-list">
+      <>
+      <TableSearch
+        value={search}
+        onChange={(value) => {
+          setSearch(value)
+          setPage(1)
+        }}
+        label="Rechercher un modèle de document"
+        placeholder="Rechercher par nom, description, état ou date…"
+      />
+      <TableShell className="doc-list">
         <table>
           <caption className="sr-only">Modèles Word enregistrés dans la clinique</caption>
           <thead>
@@ -264,7 +315,7 @@ function DocumentsPage() {
             </tr>
           </thead>
           <tbody>
-            {templates.map((template) => {
+            {displayedTemplates.map((template) => {
               const href = mediaFileUrl(template.file)
               const badge = activeBadge(template.is_active !== false)
 
@@ -337,7 +388,19 @@ function DocumentsPage() {
             })}
           </tbody>
         </table>
-      </div>
+      </TableShell>
+      <TablePagination
+        page={currentPage}
+        pageSize={pageSize}
+        totalItems={filteredTemplates.length}
+        onPageChange={setPage}
+        onPageSizeChange={(size) => {
+          setPageSize(size)
+          setPage(1)
+        }}
+        label="des modèles de documents"
+      />
+      </>
     )
   }
 

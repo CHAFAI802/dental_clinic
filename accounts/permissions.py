@@ -102,6 +102,8 @@ class IsAppointmentManager(BasePermission):
         return _has_any_role(
             request,
             (
+                User.Role.SUPER_ADMIN,
+                User.Role.ADMINISTRATOR,
                 User.Role.DENTIST,
                 User.Role.RECEPTIONIST,
             ),

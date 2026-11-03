@@ -1,6 +1,13 @@
 import { useEffect, useState } from 'react'
 
 import { apiDelete, apiGet, apiPatch, apiPost } from '../../../api/client.js'
+import TableShell from '../../../components/dashboard/TableShell.jsx'
+import {
+  filterTableRows,
+  paginateTableRows,
+  TablePagination,
+  TableSearch,
+} from '../../../components/dashboard/TableControls.jsx'
 import { useAuth } from '../../../context/AuthContext.jsx'
 import { activeBadge, formatDate } from './helpers.js'
 
@@ -33,6 +40,9 @@ function PrestationCategoriesPage() {
   const [deletingId, setDeletingId] = useState(null)
   const [actionError, setActionError] = useState('')
   const [actionSuccess, setActionSuccess] = useState('')
+  const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
 
   const load = async () => {
     setIsLoading(true)
@@ -174,6 +184,18 @@ function PrestationCategoriesPage() {
     )
   }
 
+  const filteredCategories = filterTableRows(categories, search, (category) => [
+    category.code,
+    category.name,
+    category.is_active ? 'actif' : 'inactif',
+    category.created_at,
+  ])
+  const { items: displayedCategories, currentPage } = paginateTableRows(
+    filteredCategories,
+    page,
+    pageSize,
+  )
+
   return (
     <section>
       <div className="dashboard-page-header">
@@ -246,7 +268,20 @@ function PrestationCategoriesPage() {
       {categories.length === 0 ? (
         <p>Aucune catégorie de prestation.</p>
       ) : (
-        <div className="table-shell">
+        <>
+        <TableSearch
+          value={search}
+          onChange={(value) => {
+            setSearch(value)
+            setPage(1)
+          }}
+          label="Rechercher une catégorie de prestation"
+          placeholder="Rechercher par code, nom ou statut…"
+        />
+        {filteredCategories.length === 0 ? (
+          <p>Aucune catégorie correspondante.</p>
+        ) : (
+        <TableShell>
           <table>
             <thead>
               <tr>
@@ -258,7 +293,7 @@ function PrestationCategoriesPage() {
               </tr>
             </thead>
             <tbody>
-              {categories.map((category) => {
+              {displayedCategories.map((category) => {
                 const badge = activeBadge(category.is_active !== false)
 
                 return (
@@ -295,7 +330,22 @@ function PrestationCategoriesPage() {
               })}
             </tbody>
           </table>
-        </div>
+        </TableShell>
+        )}
+        {filteredCategories.length > 0 && (
+          <TablePagination
+            page={currentPage}
+            pageSize={pageSize}
+            totalItems={filteredCategories.length}
+            onPageChange={setPage}
+            onPageSizeChange={(size) => {
+              setPageSize(size)
+              setPage(1)
+            }}
+            label="des catégories de prestation"
+          />
+        )}
+        </>
       )}
     </section>
   )
