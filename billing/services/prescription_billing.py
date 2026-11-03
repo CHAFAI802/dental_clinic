@@ -1,5 +1,8 @@
 from decimal import Decimal
 
+from django.db import transaction
+
+from appointments.models import Appointment
 from billing.models import InvoiceLine
 from prescriptions.models import Prescription
 from treatments.models import Treatment
@@ -36,6 +39,7 @@ def prescription_is_billable(*, appointment):
     return not has_dental_treatment
 
 
+@transaction.atomic
 def apply_prescription_billing(*, appointment):
     """
     Applique la facturation de l'acte PRESC à la clôture du rendez-vous.
@@ -50,10 +54,14 @@ def apply_prescription_billing(*, appointment):
 
     Retourne True si une ligne de facture a été créée.
     """
+    appointment = Appointment.objects.select_for_update().get(
+        pk=appointment.pk,
+    )
+
     presc_treatments = (
         Treatment.objects
         .filter(
-            appointment=appointment,
+            appointment_id=appointment.pk,
             prestation__code=PRESC_CODE,
         )
         .select_related("prestation")

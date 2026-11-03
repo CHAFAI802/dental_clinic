@@ -2,7 +2,6 @@ from rest_framework import fields, serializers
 from .models import Invoice, Payment, Estimate, CreditNote,InvoiceLine, PaymentMethod,Prestation,PrestationCategory,PrestationTarif
 
 from django.core.exceptions import ValidationError as DjangoValidationError
-from rest_framework import serializers
 
 
 class EstimateSerializer(serializers.ModelSerializer):
@@ -139,7 +138,10 @@ class InvoiceLineSerializer(serializers.ModelSerializer):
             treatment = attrs.get('treatment', self.instance.treatment)
             prestation = attrs.get('prestation', self.instance.prestation)
         else:
-            invoice = attrs['invoice']
+            # L'invoice est optionnelle à la création : si elle est
+            # omise, InvoiceLine.save() la déduit du rendez-vous du
+            # traitement (regroupement par Appointment).
+            invoice = attrs.get('invoice')
             treatment = attrs['treatment']
             prestation = attrs['prestation']
 
@@ -151,25 +153,13 @@ class InvoiceLineSerializer(serializers.ModelSerializer):
                 "à la prestation du traitement."
             )
 
-        if treatment.patient_id != invoice.patient_id:
+        if (
+            invoice is not None
+            and treatment.patient_id != invoice.patient_id
+        ):
             errors['treatment'] = (
                 "Le patient du traitement doit correspondre "
                 "au patient de la facture."
-            )
-
-        reference_date = treatment.start_at.date()
-
-        tarif = (
-            prestation.tarifs
-            .filter(effective_from__lte=reference_date)
-            .order_by('-effective_from')
-            .first()
-        )
-
-        if tarif is None:
-            errors['unit_price'] = (
-                "Aucun tarif applicable n'existe pour cette prestation "
-                "à la date du traitement."
             )
 
         if errors:
@@ -177,14 +167,48 @@ class InvoiceLineSerializer(serializers.ModelSerializer):
 
         return attrs
 
+    def create(self, validated_data):
+        try:
+            return super().create(validated_data)
+        except DjangoValidationError as error:
+            detail = (
+                error.message_dict
+                if hasattr(error, "message_dict")
+                else error.messages
+            )
+            raise serializers.ValidationError(detail) from error
+
+    def update(self, instance, validated_data):
+        try:
+            return super().update(instance, validated_data)
+        except DjangoValidationError as error:
+            detail = (
+                error.message_dict
+                if hasattr(error, "message_dict")
+                else error.messages
+            )
+            raise serializers.ValidationError(detail) from error
+
 
 class InvoiceSerializer(serializers.ModelSerializer):
+    created_by_last_name = serializers.CharField(
+        source='created_by.last_name',
+        read_only=True,
+    )
+
+    created_by_first_name = serializers.CharField(
+        source='created_by.first_name',
+        read_only=True,
+    )
+
     class Meta:
         model = Invoice
         fields = [
             'id',
             'patient',
             'created_by',
+            'created_by_last_name',
+            'created_by_first_name',
             'issued_at',
             'due_date',
             'status',
@@ -205,6 +229,8 @@ class InvoiceSerializer(serializers.ModelSerializer):
             'issued_at',
             'reference_number',
             'created_by',
+            'created_by_last_name',
+            'created_by_first_name',
             'status',
             'subtotal',
             'tax_amount',
@@ -218,6 +244,7 @@ class InvoiceSerializer(serializers.ModelSerializer):
 
 
 class PaymentSerializer(serializers.ModelSerializer):
+
     class Meta:
         model = Payment
         fields = [

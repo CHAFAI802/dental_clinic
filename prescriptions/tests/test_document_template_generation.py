@@ -1,12 +1,17 @@
+from concurrent.futures import ThreadPoolExecutor
 from tempfile import TemporaryDirectory
 from datetime import timedelta
 from io import BytesIO
+from threading import Barrier
+from unittest.mock import patch
 
 from docx import Document as WordDocument
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.db import close_old_connections, connections
 from django.test import override_settings
 from django.utils import timezone
-from rest_framework.test import APITestCase
+from rest_framework.test import APIClient, APITransactionTestCase
 
 from accounts.models import User
 from appointments.models import Appointment
@@ -15,9 +20,10 @@ from documents.models import DocumentTemplate
 from documents.tests.docx_fixtures import make_prescription_docx, make_simple_docx
 from patients.models import Medication, Patient
 from prescriptions.models import Prescription, PrescriptionTemplate
+from treatments.models import Treatment
 
 
-class PrescriptionDocumentTemplateGenerationTests(APITestCase):
+class PrescriptionDocumentTemplateGenerationTests(APITransactionTestCase):
     def setUp(self):
         self.media_dir = TemporaryDirectory()
         self.addCleanup(self.media_dir.cleanup)
@@ -187,6 +193,91 @@ class PrescriptionDocumentTemplateGenerationTests(APITestCase):
         with prescription.generated_file.open("rb") as generated:
             edited = WordDocument(BytesIO(generated.read()))
         self.assertIn("Modèle administratif", edited.paragraphs[0].text)
+
+    def test_simultaneous_document_generation_creates_one_presc_treatment(self):
+        barrier = Barrier(2)
+        payload = {
+            "patient": self.patient.pk,
+            "appointment": self.appointment.pk,
+            "document_template": self.template.pk,
+            "medications": [medication.pk for medication in self.medications],
+            "notes": "Ordonnance concurrente",
+        }
+
+        def generate_document():
+            close_old_connections()
+            db_connection = connections["default"]
+            db_connection.ensure_connection()
+            backend_pid = db_connection.connection.get_backend_pid()
+
+            try:
+                client = APIClient()
+                client.force_authenticate(self.dentist)
+                barrier.wait(timeout=15)
+                response = client.post(
+                    "/api/prescriptions/generate-from-document-template/",
+                    payload,
+                    format="json",
+                )
+                return backend_pid, response.status_code
+            finally:
+                close_old_connections()
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            futures = [
+                executor.submit(generate_document)
+                for _ in range(2)
+            ]
+            results = [future.result(timeout=60) for future in futures]
+
+        self.assertEqual(len({pid for pid, _ in results}), 2)
+        self.assertEqual([code for _, code in results], [201, 201])
+        self.assertEqual(
+            Treatment.objects.filter(
+                appointment=self.appointment,
+                prestation__code="PRESC",
+            ).count(),
+            1,
+        )
+        self.assertEqual(
+            Prescription.objects.filter(
+                appointment=self.appointment,
+            ).count(),
+            2,
+        )
+
+    def test_document_generation_error_rolls_back_presc_and_prescription(self):
+        self.client.force_authenticate(self.dentist)
+
+        with patch(
+            "prescriptions.views.render_prescription_docx",
+            side_effect=DjangoValidationError("Erreur de génération"),
+        ):
+            response = self.client.post(
+                "/api/prescriptions/generate-from-document-template/",
+                {
+                    "patient": self.patient.pk,
+                    "appointment": self.appointment.pk,
+                    "document_template": self.template.pk,
+                    "medications": [
+                        medication.pk for medication in self.medications
+                    ],
+                },
+                format="json",
+            )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(
+            Treatment.objects.filter(
+                appointment=self.appointment,
+                prestation__code="PRESC",
+            ).exists()
+        )
+        self.assertFalse(
+            Prescription.objects.filter(
+                appointment=self.appointment,
+            ).exists()
+        )
 
     def test_generation_rejects_unapproved_template(self):
         unapproved = DocumentTemplate.objects.create(

@@ -3,6 +3,7 @@ from decimal import Decimal
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
+from appointments.models import Appointment
 from appointments.services.appointmentstatus import (
     validate_session_appointment,
 )
@@ -31,6 +32,13 @@ class TreatmentCreationService:
     @staticmethod
     @transaction.atomic
     def create(*, appointment, prestation, dentist, quantity):
+        appointment = (
+            Appointment.objects
+            .select_for_update()
+            .get(pk=appointment.pk)
+        )
+        is_prescription = prestation.code == PRESC_CODE
+
         # Praticien, statut CONFIRMED, intervalle horaire :
         # mêmes contrôles que pour la génération d'une ordonnance.
         validate_session_appointment(
@@ -44,9 +52,31 @@ class TreatmentCreationService:
                 "prestation": "Cette prestation n'est pas active."
             })
 
-        is_prescription = prestation.code == PRESC_CODE
-
         if is_prescription:
+            existing_presc = (
+                Treatment.objects
+                .filter(
+                    appointment=appointment,
+                    prestation__code=PRESC_CODE,
+                )
+                .select_related("prestation")
+                .first()
+            )
+            if existing_presc is not None:
+                return existing_presc
+
+            if Treatment.objects.filter(
+                appointment=appointment,
+            ).exclude(
+                prestation__code=PRESC_CODE,
+            ).exists():
+                raise ValidationError({
+                    "prestation": (
+                        "Un traitement PRESC ne peut pas être créé lorsque "
+                        "des actes dentaires existent déjà pour ce rendez-vous."
+                    )
+                })
+
             # Quantité fixe de l'acte PRESC, quelle que soit la requête.
             quantity = PRESC_QUANTITY
 
@@ -83,6 +113,7 @@ class TreatmentCreationService:
         return treatment
 
 
+@transaction.atomic
 def ensure_prescription_treatment(*, appointment, dentist):
     """
     Rattache automatiquement l'acte PRESC à la séance lors de la
@@ -98,12 +129,19 @@ def ensure_prescription_treatment(*, appointment, dentist):
     Retourne le traitement PRESC concerné, ou None si la séance comporte
     déjà des prestations dentaires.
     """
+    appointment = (
+        Appointment.objects
+        .select_for_update()
+        .get(pk=appointment.pk)
+    )
+
     existing_presc = (
         Treatment.objects
         .filter(
             appointment=appointment,
             prestation__code=PRESC_CODE,
         )
+        .select_related("prestation")
         .first()
     )
 

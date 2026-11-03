@@ -18,6 +18,8 @@ from billing.models import (
     PaymentMethod,
     CreditNote
 )
+from billing.serializers import InvoiceSerializer
+from billing.admin import InvoiceAdmin
 from patients.models import Patient
 from treatments.models import Treatment 
 
@@ -616,6 +618,44 @@ class InvoiceReadTests(APITestCase):
             response.status_code,
             status.HTTP_200_OK,
         )
+
+    def test_invoice_api_creation_remains_disabled(self):
+        self.client.force_authenticate(user=self.administrator)
+
+        response = self.client.post(
+            self.url,
+            {
+                "patient": self.patient.pk,
+                "created_by": self.administrator.pk,
+                "issued_at": "2026-09-17",
+                "due_date": "2026-09-17",
+                "reference_number": "CLIENT-CHOSEN/2026",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertFalse(
+            Invoice.objects.filter(
+                reference_number="CLIENT-CHOSEN/2026",
+            ).exists()
+        )
+
+    def test_invoice_serializer_does_not_accept_client_reference(self):
+        serializer = InvoiceSerializer(
+            data={
+                "due_date": "2026-09-17",
+                "reference_number": "CLIENT-CHOSEN/2026",
+            }
+        )
+
+        self.assertTrue(serializer.fields["reference_number"].read_only)
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        self.assertNotIn(
+            "reference_number",
+            serializer.validated_data,
+        )
+        self.assertIn("reference_number", InvoiceAdmin.readonly_fields)
 
     def test_accountant_can_read_invoices(self):
         self.client.force_authenticate(user=self.accountant)

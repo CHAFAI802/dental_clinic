@@ -293,10 +293,8 @@ function InvoicesPage() {
               <p className="muted" style={{ margin: '0.25rem 0 0' }}>
                 Patient : {patientLabel(selectedInvoice.patient, patientLabels)} · Émission :{' '}
                 {formatDate(selectedInvoice.issued_at)} · Échéance :{' '}
-                {formatDate(selectedInvoice.due_date)} · Créée par :{' '}
-                {selectedInvoice.created_by === null || selectedInvoice.created_by === undefined
-                  ? '-'
-                  : `#${selectedInvoice.created_by}`}
+                {formatDate(selectedInvoice.due_date)} · Dentiste :{' '}
+                {selectedInvoice.created_by_last_name || '-'} {selectedInvoice.created_by_first_name || '-'}
               </p>
             </div>
 

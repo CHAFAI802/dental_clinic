@@ -3,15 +3,27 @@ import re
 from datetime import date
 
 from django.core.exceptions import ValidationError
-from django.db import models
+from django.db import models, transaction
 from django.db.models import Sum
 from django.utils import timezone
+
+from appointments.models import Appointment
 
 from dental_clinic.common import (
     TimestampedModel,
     SoftDeleteModel,
     ProtectedSoftDeleteManager,
 )
+
+
+def _lock_invoices(*invoice_ids):
+    locked = {}
+    for invoice_id in sorted(set(filter(None, invoice_ids))):
+        locked[invoice_id] = Invoice.all_objects.select_for_update().get(
+            pk=invoice_id,
+        )
+    return locked
+
 
 class PrestationCategory(TimestampedModel):
     """
@@ -322,6 +334,17 @@ class Invoice(SoftDeleteModel):
             raise ValidationError(errors)
 
     def recalculate_financials(self):
+        with transaction.atomic():
+            locked_invoice = (
+                Invoice.all_objects
+                .select_for_update()
+                .get(pk=self.pk)
+            )
+            self.status = locked_invoice.status
+
+            self._recalculate_financials_locked()
+
+    def _recalculate_financials_locked(self):
         subtotal = Decimal('0.00')
         tax_amount = Decimal('0.00')
         total_amount = Decimal('0.00')
@@ -389,6 +412,28 @@ class Invoice(SoftDeleteModel):
             and self.balance_due == Decimal('0.00')
         ):
             self.status = self.Status.COMPLETED
+
+    def save(self, *args, **kwargs):
+        if self._state.adding and not self.reference_number:
+            invoice_date = self.issued_at
+            if isinstance(invoice_date, str):
+                invoice_date = date.fromisoformat(invoice_date)
+                self.issued_at = invoice_date
+
+            using = kwargs.get('using') or self._state.db
+            with transaction.atomic(using=using):
+                with transaction.get_connection(using).cursor() as cursor:
+                    cursor.execute(
+                        "SELECT pg_advisory_xact_lock(%s, %s)",
+                        [0x44454E54, invoice_date.year],
+                    )
+
+                self.reference_number = self.generate_reference_number(
+                    invoice_date,
+                )
+                return super().save(*args, **kwargs)
+
+        return super().save(*args, **kwargs)
 
     @classmethod
     def generate_reference_number(cls, invoice_date):
@@ -586,24 +631,28 @@ class InvoiceLine(TimestampedModel):
             raise ValidationError(errors)
 
     def delete(self, *args, **kwargs):
-        invoice = self.invoice
+        with transaction.atomic():
+            invoice_id = self.invoice_id
+            if invoice_id is None:
+                return super().delete(*args, **kwargs)
 
-        result = super().delete(*args, **kwargs)
-
-        invoice.recalculate_financials()
-        invoice.save(
-            update_fields=[
-                'subtotal',
-                'tax_amount',
-                'total_amount',
-                'credit_amount',
-                'paid_amount',
-                'balance_due',
-                'status',
-            ]
-        )
-
-        return result
+            invoice = Invoice.all_objects.select_for_update().get(
+                pk=invoice_id,
+            )
+            result = super().delete(*args, **kwargs)
+            invoice.recalculate_financials()
+            invoice.save(
+                update_fields=[
+                    'subtotal',
+                    'tax_amount',
+                    'total_amount',
+                    'credit_amount',
+                    'paid_amount',
+                    'balance_due',
+                    'status',
+                ]
+            )
+            return result
 
     def get_applicable_pricing(self):
         reference_date = self.treatment.start_at.date()
@@ -625,57 +674,160 @@ class InvoiceLine(TimestampedModel):
             'tax_rate': tarif.tax_rate,
         }
 
-    def save(self, *args, **kwargs):
-        pricing = self.get_applicable_pricing()
+    def _create_invoice_for_treatment(self):
+        invoice_date = self.treatment.start_at.date()
 
-        if pricing is None:
+        return Invoice.objects.create(
+            patient=self.treatment.patient,
+            created_by=self.treatment.dentist,
+            issued_at=invoice_date,
+            due_date=invoice_date,
+            status=Invoice.Status.ISSUED,
+        )
+
+    def _get_or_create_invoice(self):
+        """
+        Facture regroupant les traitements d'un même rendez-vous.
+
+        The caller holds a transaction open, so the appointment lock also
+        protects the subsequent InvoiceLine insert.
+        """
+        appointment_id = self.treatment.appointment_id
+
+        if appointment_id is None:
+            return self._create_invoice_for_treatment()
+
+        try:
+            Appointment.objects.select_for_update().get(pk=appointment_id)
+        except Appointment.DoesNotExist as error:
             raise ValidationError({
-                'unit_price': (
-                    'Aucun tarif applicable n’existe pour cette prestation '
-                    'à la date du traitement.'
+                'treatment': (
+                    "Le rendez-vous associé au traitement n'existe plus."
+                )
+            }) from error
+
+        provided_invoice = None
+        if self.invoice_id is not None:
+            provided_invoice = (
+                Invoice.all_objects
+                .select_for_update()
+                .filter(pk=self.invoice_id)
+                .first()
+            )
+            if provided_invoice is None:
+                raise ValidationError({
+                    'invoice': "La facture fournie n'existe pas."
+                })
+            if provided_invoice.is_deleted:
+                raise ValidationError({
+                    'invoice': (
+                        "Une facture archivée ne peut pas recevoir de "
+                        "nouvelle ligne."
+                    )
+                })
+
+        invoice_ids = list(
+            Invoice.all_objects
+            .filter(lines__treatment__appointment_id=appointment_id)
+            .order_by('pk')
+            .values_list('pk', flat=True)
+            .distinct()[:2]
+        )
+
+        if len(invoice_ids) > 1:
+            raise ValidationError({
+                'invoice': (
+                    "Les traitements de ce rendez-vous sont déjà répartis "
+                    "sur plusieurs factures. La facturation est bloquée "
+                    "pour préserver leur cohérence."
                 )
             })
 
-        self.unit_price = pricing['unit_price']
-        self.tax_rate = pricing['tax_rate']
+        if invoice_ids:
+            expected_invoice_id = invoice_ids[0]
+            if (
+                self.invoice_id is not None
+                and self.invoice_id != expected_invoice_id
+            ):
+                raise ValidationError({
+                    'invoice': (
+                        "La facture fournie ne correspond pas à la facture "
+                        "de regroupement de ce rendez-vous."
+                    )
+                })
 
-        # Valider d'abord la ligne
-        self.full_clean()
-
-        # Première InvoiceLine :
-        # aucune Invoice n'existe encore, on l'initialise.
-
-        if self.invoice_id is None:
-            invoice_date = self.treatment.start_at.date()
-
-            self.invoice = Invoice.objects.create(
-                patient=self.treatment.patient,
-                created_by=self.treatment.dentist,
-                issued_at=invoice_date,
-                due_date=invoice_date,
-                status=Invoice.Status.ISSUED,
-                reference_number=Invoice.generate_reference_number(
-                    invoice_date
-                ),
+            invoice = (
+                provided_invoice
+                if provided_invoice is not None
+                else _lock_invoices(expected_invoice_id)[expected_invoice_id]
             )
-        # Maintenant invoice existe obligatoirement
-        result = super().save(*args, **kwargs)
+            if invoice.is_deleted:
+                raise ValidationError({
+                    'invoice': (
+                        "La facture de regroupement de ce rendez-vous est "
+                        "archivée et ne peut pas recevoir de nouvelle ligne."
+                    )
+                })
+            return invoice
 
-        self.invoice.recalculate_financials()
+        if self.invoice_id is not None:
+            provided_invoice = _lock_invoices(self.invoice_id)[self.invoice_id]
+            if provided_invoice.lines.exclude(
+                treatment__appointment_id=appointment_id,
+            ).exists():
+                raise ValidationError({
+                    'invoice': (
+                        "La facture fournie contient déjà des lignes "
+                        "associées à un autre rendez-vous."
+                    )
+                })
+            return provided_invoice
 
-        self.invoice.save(
-            update_fields=[
-                'subtotal',
-                'tax_amount',
-                'total_amount',
-                'credit_amount',
-                'paid_amount',
-                'balance_due',
-                'status',
-            ]
-        )
+        return self._create_invoice_for_treatment()
 
-        return result
+    def save(self, *args, **kwargs):
+        with transaction.atomic():
+            pricing = self.get_applicable_pricing()
+
+            if pricing is None:
+                raise ValidationError({
+                    'unit_price': (
+                        'Aucun tarif applicable n’existe pour cette prestation '
+                        'à la date du traitement.'
+                    )
+                })
+
+            self.unit_price = pricing['unit_price']
+            self.tax_rate = pricing['tax_rate']
+
+            if self.treatment.appointment_id is not None:
+                self.invoice = self._get_or_create_invoice()
+            elif self.invoice_id is None:
+                self.invoice = self._create_invoice_for_treatment()
+            else:
+                self.invoice = _lock_invoices(self.invoice_id)[
+                    self.invoice_id
+                ]
+
+            # Validate after assigning the actual invoice so patient and
+            # appointment consistency are checked against persisted values.
+            self.full_clean()
+            result = super().save(*args, **kwargs)
+
+            self.invoice.recalculate_financials()
+            self.invoice.save(
+                update_fields=[
+                    'subtotal',
+                    'tax_amount',
+                    'total_amount',
+                    'credit_amount',
+                    'paid_amount',
+                    'balance_due',
+                    'status',
+                ]
+            )
+
+            return result
 
 class Payment(TimestampedModel):
     class Status(models.TextChoices):
@@ -739,15 +891,18 @@ class Payment(TimestampedModel):
             balance = self.invoice.balance_due
 
             if self.pk:
-                previous_amount = (
+                previous_payment = (
                     Payment.objects
                     .filter(pk=self.pk)
-                    .values_list('amount', flat=True)
+                    .values('amount', 'invoice_id')
                     .first()
                 )
 
-                if previous_amount:
-                    balance += previous_amount
+                if (
+                    previous_payment is not None
+                    and previous_payment['invoice_id'] == self.invoice_id
+                ):
+                    balance += previous_payment['amount']
 
             if self.amount > balance:
                 errors['amount'] = (
@@ -759,44 +914,88 @@ class Payment(TimestampedModel):
             raise ValidationError(errors)
 
     def delete(self, *args, **kwargs):
-        invoice = self.invoice
-
-        result = super().delete(*args, **kwargs)
-
-        invoice.recalculate_financials()
-        invoice.save(
-            update_fields=[
-                'subtotal',
-                'tax_amount',
-                'total_amount',
-                'credit_amount',
-                'paid_amount',
-                'balance_due',
-                'status',
+        with transaction.atomic():
+            persisted_invoice_id = (
+                Payment.objects
+                .filter(pk=self.pk)
+                .values_list('invoice_id', flat=True)
+                .first()
+            )
+            invoice = _lock_invoices(persisted_invoice_id)[
+                persisted_invoice_id
             ]
-        )
+            payment = Payment.objects.select_for_update().get(pk=self.pk)
+            if payment.invoice_id != persisted_invoice_id:
+                raise ValidationError(
+                    "Le paiement a changé de facture pendant sa suppression."
+                )
 
-        return result
+            result = super().delete(*args, **kwargs)
+            invoice.recalculate_financials()
+            invoice.save(
+                update_fields=[
+                    'subtotal',
+                    'tax_amount',
+                    'total_amount',
+                    'credit_amount',
+                    'paid_amount',
+                    'balance_due',
+                    'status',
+                ]
+            )
+            return result
 
     def save(self, *args, **kwargs):
-        self.full_clean()
+        with transaction.atomic():
+            if self.invoice_id is None:
+                self.full_clean()
 
-        result = super().save(*args, **kwargs)
+            previous_invoice_id = None
+            if self.pk is not None:
+                previous_invoice_id = (
+                    Payment.objects
+                    .filter(pk=self.pk)
+                    .values_list('invoice_id', flat=True)
+                    .first()
+                )
 
-        self.invoice.recalculate_financials()
-        self.invoice.save(
-            update_fields=[
-                'subtotal',
-                'tax_amount',
-                'total_amount',
-                'credit_amount',
-                'paid_amount',
-                'balance_due',
-                'status',
-            ]
-        )
+            locked_invoices = _lock_invoices(
+                previous_invoice_id,
+                self.invoice_id,
+            )
+            invoice = locked_invoices[self.invoice_id]
+            self.invoice = invoice
 
-        return result
+            if self.pk is not None:
+                persisted_payment = (
+                    Payment.objects
+                    .select_for_update()
+                    .get(pk=self.pk)
+                )
+                if persisted_payment.invoice_id != previous_invoice_id:
+                    raise ValidationError(
+                        "Le paiement a changé de facture pendant sa modification."
+                    )
+
+            invoice.recalculate_financials()
+            self.full_clean()
+            result = super().save(*args, **kwargs)
+
+            for locked_invoice in locked_invoices.values():
+                locked_invoice.recalculate_financials()
+                locked_invoice.save(
+                    update_fields=[
+                        'subtotal',
+                        'tax_amount',
+                        'total_amount',
+                        'credit_amount',
+                        'paid_amount',
+                        'balance_due',
+                        'status',
+                    ]
+                )
+
+            return result
 
     def __str__(self):
         return f"{self.amount} - {self.invoice.reference_number}"
@@ -845,15 +1044,18 @@ class CreditNote(TimestampedModel):
             )
 
             if self.pk:
-                previous_amount = (
+                previous_credit = (
                     CreditNote.objects
                     .filter(pk=self.pk)
-                    .values_list('amount', flat=True)
+                    .values('amount', 'invoice_id')
                     .first()
                 )
 
-                if previous_amount:
-                    credited -= previous_amount
+                if (
+                    previous_credit is not None
+                    and previous_credit['invoice_id'] == self.invoice_id
+                ):
+                    credited -= previous_credit['amount']
 
             available = (
                 self.invoice.total_amount
@@ -871,44 +1073,88 @@ class CreditNote(TimestampedModel):
             raise ValidationError(errors)
 
     def delete(self, *args, **kwargs):
-        invoice = self.invoice
-
-        result = super().delete(*args, **kwargs)
-
-        invoice.recalculate_financials()
-        invoice.save(
-            update_fields=[
-                'subtotal',
-                'tax_amount',
-                'total_amount',
-                'credit_amount',
-                'paid_amount',
-                'balance_due',
-                'status',
+        with transaction.atomic():
+            persisted_invoice_id = (
+                CreditNote.objects
+                .filter(pk=self.pk)
+                .values_list('invoice_id', flat=True)
+                .first()
+            )
+            invoice = _lock_invoices(persisted_invoice_id)[
+                persisted_invoice_id
             ]
-        )
+            credit_note = CreditNote.objects.select_for_update().get(pk=self.pk)
+            if credit_note.invoice_id != persisted_invoice_id:
+                raise ValidationError(
+                    "L'avoir a changé de facture pendant sa suppression."
+                )
 
-        return result
+            result = super().delete(*args, **kwargs)
+            invoice.recalculate_financials()
+            invoice.save(
+                update_fields=[
+                    'subtotal',
+                    'tax_amount',
+                    'total_amount',
+                    'credit_amount',
+                    'paid_amount',
+                    'balance_due',
+                    'status',
+                ]
+            )
+            return result
 
     def save(self, *args, **kwargs):
-        self.full_clean()
+        with transaction.atomic():
+            if self.invoice_id is None:
+                self.full_clean()
 
-        result = super().save(*args, **kwargs)
+            previous_invoice_id = None
+            if self.pk is not None:
+                previous_invoice_id = (
+                    CreditNote.objects
+                    .filter(pk=self.pk)
+                    .values_list('invoice_id', flat=True)
+                    .first()
+                )
 
-        self.invoice.recalculate_financials()
-        self.invoice.save(
-            update_fields=[
-                'subtotal',
-                'tax_amount',
-                'total_amount',
-                'credit_amount',
-                'paid_amount',
-                'balance_due',
-                'status',
-            ]
-        )
+            locked_invoices = _lock_invoices(
+                previous_invoice_id,
+                self.invoice_id,
+            )
+            invoice = locked_invoices[self.invoice_id]
+            self.invoice = invoice
 
-        return result
+            if self.pk is not None:
+                persisted_credit = (
+                    CreditNote.objects
+                    .select_for_update()
+                    .get(pk=self.pk)
+                )
+                if persisted_credit.invoice_id != previous_invoice_id:
+                    raise ValidationError(
+                        "L'avoir a changé de facture pendant sa modification."
+                    )
+
+            invoice.recalculate_financials()
+            self.full_clean()
+            result = super().save(*args, **kwargs)
+
+            for locked_invoice in locked_invoices.values():
+                locked_invoice.recalculate_financials()
+                locked_invoice.save(
+                    update_fields=[
+                        'subtotal',
+                        'tax_amount',
+                        'total_amount',
+                        'credit_amount',
+                        'paid_amount',
+                        'balance_due',
+                        'status',
+                    ]
+                )
+
+            return result
 
     def __str__(self):
         return f"Avoir {self.amount} - {self.invoice.reference_number}"

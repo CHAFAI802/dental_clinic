@@ -32,7 +32,10 @@ class InvoiceLineViewSet(viewsets.ModelViewSet):
 
 
 class InvoiceViewSet(viewsets.ModelViewSet):
-    queryset = Invoice.objects.all()
+    queryset = Invoice.objects.select_related(
+        'patient',
+        'created_by',
+    )
     serializer_class = InvoiceSerializer
     permission_classes = [InvoicePermission]
 

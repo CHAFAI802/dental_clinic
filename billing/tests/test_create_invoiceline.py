@@ -1,10 +1,12 @@
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from appointments.models import Appointment
 from billing.models import (
     PrestationCategory,
     Prestation,
@@ -163,6 +165,32 @@ class InvoiceLineCreationTests(APITestCase):
             invoice_line.total,
             Decimal("5950.00"),
         )
+
+    def test_delete_invoice_line_without_invoice(self):
+        invoice_line = InvoiceLine(
+            treatment=self.treatment,
+            prestation=self.prestation,
+            description="Ligne sans facture",
+            quantity=Decimal("1.00"),
+            unit_price=Decimal("5000.00"),
+            tax_rate=Decimal("19.00"),
+        )
+        InvoiceLine.objects.bulk_create([invoice_line])
+
+        invoice_line.refresh_from_db()
+
+        self.assertIsNone(invoice_line.invoice_id)
+        self.assertTrue(
+            InvoiceLine.objects.filter(pk=invoice_line.pk).exists()
+        )
+        self.assertEqual(Invoice.objects.count(), 1)
+
+        invoice_line.delete()
+
+        self.assertFalse(
+            InvoiceLine.objects.filter(pk=invoice_line.pk).exists()
+        )
+        self.assertEqual(Invoice.objects.count(), 1)
 
     def test_invoice_line_keeps_snapshot_when_admin_changes_tariff(self):
         response = self.client.post(
@@ -1079,3 +1107,290 @@ class InvoiceLineNegativePermissionTests(APITestCase):
             status.HTTP_403_FORBIDDEN,
         )
 
+
+class InvoiceLineAppointmentGroupingTests(APITestCase):
+    """
+    Les lignes des traitements d'un même rendez-vous sont regroupées
+    dans une seule facture, créée ou réutilisée par InvoiceLine.save().
+    """
+
+    def setUp(self):
+        self.dentist = User.objects.create_user(
+            email="dentist@example.com",
+            password="password123",
+            first_name="Dentist",
+            last_name="User",
+            role=User.Role.DENTIST,
+        )
+
+        self.patient = Patient.objects.create(
+            first_name="patientfirstname",
+            last_name="patientlastname",
+            birthdate="2000-11-21",
+            gender="patientgender",
+            phone="12345678",
+        )
+
+        self.category = PrestationCategory.objects.create(
+            name="Consultation",
+            code="CONSULT",
+            is_active=True,
+        )
+
+        self.prestation = Prestation.objects.create(
+            category=self.category,
+            code="CONSULT-01",
+            label="Consultation dentaire",
+            description="Consultation",
+            is_active=True,
+        )
+
+        PrestationTarif.objects.create(
+            prestation=self.prestation,
+            amount="5000.00",
+            tax_rate="19.00",
+            effective_from="2026-01-01",
+        )
+
+        self.appointment = Appointment.objects.create(
+            patient=self.patient,
+            practitioner=self.dentist,
+            start_at="2026-09-14T10:00:00+01:00",
+            end_at="2026-09-14T10:30:00+01:00",
+            duration_minutes=30,
+        )
+
+        self.treatment_1 = self._create_treatment(
+            appointment=self.appointment,
+            code="TRT-001",
+            start_at="2026-09-14T10:00:00+01:00",
+        )
+
+        self.treatment_2 = self._create_treatment(
+            appointment=self.appointment,
+            code="TRT-002",
+            start_at="2026-09-14T10:15:00+01:00",
+        )
+
+        self.client.force_authenticate(user=self.dentist)
+
+    def _create_treatment(self, *, appointment, code, start_at):
+        return Treatment.objects.create(
+            patient=self.patient,
+            dentist=self.dentist,
+            prestation=self.prestation,
+            appointment=appointment,
+            code=code,
+            label="Consultation dentaire",
+            description="Consultation",
+            start_at=start_at,
+        )
+
+    def _create_line(self, treatment, invoice=None):
+        data = {
+            "treatment": treatment.id,
+            "prestation": self.prestation.id,
+            "description": "Consultation dentaire",
+            "quantity": "1.00",
+        }
+        if invoice is not None:
+            data["invoice"] = invoice.id
+
+        return self.client.post(
+            reverse("invoiceline-list"),
+            data,
+            format="json",
+        )
+
+    def test_treatments_of_same_appointment_share_one_invoice(self):
+        response = self._create_line(self.treatment_1)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        first_invoice_id = response.data["invoice"]
+
+        response = self._create_line(self.treatment_2)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["invoice"], first_invoice_id)
+
+        self.assertEqual(Invoice.objects.count(), 1)
+
+        invoice = Invoice.objects.get(pk=first_invoice_id)
+        self.assertEqual(invoice.lines.count(), 2)
+
+        # Les totaux couvrent les deux lignes regroupées.
+        self.assertEqual(invoice.subtotal, Decimal("10000.00"))
+        self.assertEqual(invoice.total_amount, Decimal("11900.00"))
+
+    def test_new_line_for_same_appointment_reuses_invoice(self):
+        response = self._create_line(self.treatment_1)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        invoice_id = response.data["invoice"]
+
+        treatment_3 = self._create_treatment(
+            appointment=self.appointment,
+            code="TRT-003",
+            start_at="2026-09-14T10:30:00+01:00",
+        )
+
+        response = self._create_line(treatment_3)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["invoice"], invoice_id)
+
+        # Idempotent : aucune facture en doublon pour le rendez-vous.
+        self.assertEqual(Invoice.objects.count(), 1)
+        self.assertEqual(
+            Invoice.objects.filter(pk=invoice_id).count(),
+            1,
+        )
+
+    def test_explicit_appointment_invoice_is_accepted_when_compatible(self):
+        first_response = self._create_line(self.treatment_1)
+        self.assertEqual(first_response.status_code, status.HTTP_201_CREATED)
+        invoice_id = first_response.data["invoice"]
+
+        response = self._create_line(self.treatment_2, invoice=Invoice.objects.get(pk=invoice_id))
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["invoice"], invoice_id)
+        self.assertEqual(Invoice.objects.count(), 1)
+
+    def test_rejects_invoice_from_another_appointment_of_same_patient(self):
+        first_response = self._create_line(self.treatment_1)
+        self.assertEqual(first_response.status_code, status.HTTP_201_CREATED)
+
+        other_appointment = Appointment.objects.create(
+            patient=self.patient,
+            practitioner=self.dentist,
+            start_at="2026-09-15T10:00:00+01:00",
+            end_at="2026-09-15T10:30:00+01:00",
+            duration_minutes=30,
+        )
+        other_treatment = self._create_treatment(
+            appointment=other_appointment,
+            code="TRT-OTHER-APPOINTMENT",
+            start_at="2026-09-15T10:00:00+01:00",
+        )
+        other_response = self._create_line(other_treatment)
+        self.assertEqual(other_response.status_code, status.HTTP_201_CREATED)
+        self.assertNotEqual(
+            first_response.data["invoice"],
+            other_response.data["invoice"],
+        )
+
+        remaining_treatment = self._create_treatment(
+            appointment=self.appointment,
+            code="TRT-003",
+            start_at="2026-09-14T10:20:00+01:00",
+        )
+        response = self._create_line(
+            remaining_treatment,
+            invoice=Invoice.objects.get(pk=other_response.data["invoice"]),
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("invoice", response.data)
+        self.assertEqual(InvoiceLine.objects.count(), 2)
+        self.assertEqual(Invoice.objects.count(), 2)
+
+    def test_rejects_explicit_invoice_for_different_patient(self):
+        other_patient = Patient.objects.create(
+            first_name="other",
+            last_name="patient",
+            birthdate="1990-01-01",
+            gender="other",
+            phone="87654321",
+        )
+        other_invoice = Invoice.objects.create(
+            patient=other_patient,
+            created_by=self.dentist,
+            status=Invoice.Status.DRAFT,
+            issued_at="2026-09-14",
+            due_date="2026-09-21",
+        )
+
+        response = self._create_line(self.treatment_1, invoice=other_invoice)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("treatment", response.data)
+        self.assertEqual(InvoiceLine.objects.count(), 0)
+        self.assertEqual(Invoice.objects.count(), 1)
+
+    def test_failed_line_validation_rolls_back_created_invoice(self):
+        invalid_prestation = Prestation.objects.create(
+            category=self.category,
+            code="CONSULT-INVALID",
+            label="Prestation incompatible",
+            is_active=True,
+        )
+        PrestationTarif.objects.create(
+            prestation=invalid_prestation,
+            amount="100.00",
+            tax_rate="0.00",
+            effective_from="2026-01-01",
+        )
+
+        with self.assertRaises(DjangoValidationError):
+            InvoiceLine.objects.create(
+                treatment=self.treatment_1,
+                prestation=invalid_prestation,
+                description="Ligne incompatible",
+                quantity="1.00",
+            )
+
+        self.assertEqual(Invoice.objects.count(), 0)
+        self.assertEqual(InvoiceLine.objects.count(), 0)
+
+    def test_treatment_without_appointment_keeps_own_invoice(self):
+        solo_treatment = self._create_treatment(
+            appointment=None,
+            code="TRT-SOLO",
+            start_at="2026-09-15T10:00:00+01:00",
+        )
+
+        response = self._create_line(solo_treatment)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        self.assertEqual(Invoice.objects.count(), 1)
+        self.assertEqual(
+            Invoice.objects.filter(
+                pk=response.data["invoice"],
+            ).count(),
+            1,
+        )
+
+    def test_api_created_invoices_receive_unique_generated_references(self):
+        first_response = self._create_line(self.treatment_1)
+        self.assertEqual(first_response.status_code, status.HTTP_201_CREATED)
+        first_invoice = Invoice.objects.get(pk=first_response.data["invoice"])
+
+        other_appointment = Appointment.objects.create(
+            patient=self.patient,
+            practitioner=self.dentist,
+            start_at="2026-09-15T10:00:00+01:00",
+            end_at="2026-09-15T10:30:00+01:00",
+            duration_minutes=30,
+        )
+        other_treatment = self._create_treatment(
+            appointment=other_appointment,
+            code="TRT-OTHER-REFERENCE",
+            start_at="2026-09-15T10:00:00+01:00",
+        )
+        second_response = self._create_line(other_treatment)
+        self.assertEqual(second_response.status_code, status.HTTP_201_CREATED)
+        second_invoice = Invoice.objects.get(pk=second_response.data["invoice"])
+
+        self.assertNotEqual(first_invoice.pk, second_invoice.pk)
+        self.assertRegex(first_invoice.reference_number, r"^[A-Z]+\d+/2026$")
+        self.assertRegex(second_invoice.reference_number, r"^[A-Z]+\d+/2026$")
+        self.assertNotEqual(
+            first_invoice.reference_number,
+            second_invoice.reference_number,
+        )
+        self.assertEqual(
+            Invoice.objects.filter(
+                reference_number__in=(
+                    first_invoice.reference_number,
+                    second_invoice.reference_number,
+                )
+            ).count(),
+            2,
+        )

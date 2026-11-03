@@ -11,6 +11,7 @@ from appointments.models import Appointment
 from billing.models import Invoice, InvoiceLine, Prestation, PrestationCategory, PrestationTarif
 from patients.models import Patient
 from treatments.models import Treatment
+from treatments.services.treatment_creation import ensure_prescription_treatment
 
 
 User = get_user_model()
@@ -52,6 +53,11 @@ class CreateTreatmentFromConfirmedAppointmentTest(APITestCase):
             amount="1000.00",
             tax_rate="12.00",
             effective_from=timezone.now().date(),
+        )
+        self.presc_prestation = Prestation.objects.create(
+            category=self.category,
+            code="PRESC",
+            label="Acte de prescrire",
         )
 
         now = timezone.now()
@@ -193,4 +199,113 @@ class CreateTreatmentFromConfirmedAppointmentTest(APITestCase):
         self.assertEqual(
             Invoice.objects.count(),
             0,
+        )
+
+    def test_manual_presc_creation_is_allowed_without_dental_treatment(self):
+        response = self.client.post(
+            reverse("treatment-list"),
+            {
+                "appointment": self.appointment.pk,
+                "prestation": self.presc_prestation.pk,
+                "quantity": Decimal("4.00"),
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        presc = Treatment.objects.get(pk=response.data["id"])
+        self.assertEqual(presc.prestation, self.presc_prestation)
+        self.assertEqual(presc.appointment, self.appointment)
+        self.assertFalse(InvoiceLine.objects.filter(treatment=presc).exists())
+        self.assertEqual(
+            ensure_prescription_treatment(
+                appointment=self.appointment,
+                dentist=self.dentist,
+            ).pk,
+            presc.pk,
+        )
+        self.assertEqual(
+            Treatment.objects.filter(
+                appointment=self.appointment,
+                prestation__code="PRESC",
+            ).count(),
+            1,
+        )
+
+    def test_manual_and_automatic_presc_do_not_create_when_dental_treatment_exists(self):
+        dental_treatment = Treatment.objects.create(
+            patient=self.patient,
+            dentist=self.dentist,
+            appointment=self.appointment,
+            prestation=self.prestation,
+            code=self.prestation.code,
+            label=self.prestation.label,
+            start_at=self.appointment.start_at,
+        )
+
+        response = self.client.post(
+            reverse("treatment-list"),
+            {
+                "appointment": self.appointment.pk,
+                "prestation": self.presc_prestation.pk,
+                "quantity": Decimal("1.00"),
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("prestation", response.data)
+        self.assertIsNone(
+            ensure_prescription_treatment(
+                appointment=self.appointment,
+                dentist=self.dentist,
+            )
+        )
+        self.assertEqual(
+            Treatment.objects.filter(appointment=self.appointment).count(),
+            1,
+        )
+        self.assertEqual(
+            Treatment.objects.get(appointment=self.appointment),
+            dental_treatment,
+        )
+
+    def test_manual_presc_creation_reuses_existing_presc_treatment(self):
+        existing_presc = Treatment.objects.create(
+            patient=self.patient,
+            dentist=self.dentist,
+            appointment=self.appointment,
+            prestation=self.presc_prestation,
+            code=self.presc_prestation.code,
+            label=self.presc_prestation.label,
+            start_at=self.appointment.start_at,
+        )
+        dental_treatment = Treatment.objects.create(
+            patient=self.patient,
+            dentist=self.dentist,
+            appointment=self.appointment,
+            prestation=self.prestation,
+            code=self.prestation.code,
+            label=self.prestation.label,
+            start_at=self.appointment.start_at,
+        )
+
+        response = self.client.post(
+            reverse("treatment-list"),
+            {
+                "appointment": self.appointment.pk,
+                "prestation": self.presc_prestation.pk,
+                "quantity": Decimal("1.00"),
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["id"], existing_presc.pk)
+        self.assertEqual(
+            Treatment.objects.filter(appointment=self.appointment).count(),
+            2,
+        )
+        self.assertFalse(
+            InvoiceLine.objects.filter(treatment=dental_treatment).exists()
         )
