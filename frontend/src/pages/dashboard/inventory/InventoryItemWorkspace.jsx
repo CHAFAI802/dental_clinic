@@ -160,6 +160,14 @@ function InventoryItemWorkspace({
     await onRefresh()
   }
 
+  const handleDestructionCompleted = async (completed) => {
+    setIsDestructionFormOpen(false)
+    setSuccess(
+      `Destruction n° ${completed.id} effectuée : le stock a été actualisé par le serveur.`,
+    )
+    await onRefresh()
+  }
+
   const handleItemSaved = async () => {
     setIsItemFormOpen(false)
     setSuccess('Article mis à jour par le serveur.')
@@ -668,6 +676,7 @@ function InventoryItemWorkspace({
               entries={entries}
               defaultItemId={item.id}
               onCreated={handleDestructionSaved}
+              onCompleted={handleDestructionCompleted}
               onCancel={() => setIsDestructionFormOpen(false)}
             />
           )}
@@ -745,12 +754,6 @@ function InventoryItemWorkspace({
             />
           )}
 
-          <p className="doc-warning">
-            Les documents de destruction créés par l’API restent au statut
-            « Enregistrée » : aucune route du backend n’exécute
-            StockDestruction.apply(), les quantités ne sont donc pas déduites
-            du stock.
-          </p>
         </section>
 
         {/* ---------- Alertes ---------- */}

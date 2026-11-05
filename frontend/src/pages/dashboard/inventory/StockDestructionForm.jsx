@@ -25,9 +25,6 @@ import {
  *        exécute la destruction : déduit les lots, met à jour le stock
  *        physique, passe le document à COMPLETED et synchronise les alertes.
  *
- * Limite backend : aucune route n'expose l'action apply() (voir ci-dessous).
- * L'interface affiche cet état au lieu de simuler une destruction effectuée.
- *
  * `stock_alert` (facultatif) n'est pas proposé : l'API /api/stock-alerts/
  * n'expose pas le lot rattaché à l'alerte, le rapprochement alerte ↔ lot
  * est donc impossible côté client.
@@ -36,7 +33,14 @@ import {
 const EMPTY_DOCUMENT = { reason: '', destroyed_at: '' }
 const EMPTY_LINE = { stock_entry: '', quantity: '' }
 
-function StockDestructionForm({ items, entries, defaultItemId, onCreated, onCancel }) {
+function StockDestructionForm({
+  items,
+  entries,
+  defaultItemId,
+  onCreated,
+  onCompleted,
+  onCancel,
+}) {
   const [itemId, setItemId] = useState(defaultItemId ? String(defaultItemId) : '')
   const [documentForm, setDocumentForm] = useState(EMPTY_DOCUMENT)
   const [destruction, setDestruction] = useState(null)
@@ -96,7 +100,7 @@ function StockDestructionForm({ items, entries, defaultItemId, onCreated, onCanc
 
   const handleAddLine = async (event) => {
     event.preventDefault()
-    if (isSavingLine || !destruction) return
+    if (isSavingLine || destruction?.status !== 'recorded') return
 
     setLineError('')
 
@@ -138,8 +142,7 @@ function StockDestructionForm({ items, entries, defaultItemId, onCreated, onCanc
       )
 
       setDestruction(response)
-      setLines([])
-      onCreated(response)
+      onCompleted(response)
     } catch (err) {
       setExecutionError(splitApiErrors(err).general)
     } finally {
@@ -148,7 +151,7 @@ function StockDestructionForm({ items, entries, defaultItemId, onCreated, onCanc
   }
 
   const isExecutable =
-    destruction?.status === 'recorded' && destruction?.lines?.length > 0
+    destruction?.status === 'recorded' && lines.length > 0
 
   return (
     <div className="form-shell">
@@ -274,16 +277,6 @@ function StockDestructionForm({ items, entries, defaultItemId, onCreated, onCanc
             </p>
           )}
 
-          {destruction.status === 'recorded' && (
-            <p className="doc-warning">
-              Le document reste au statut « Enregistrée ». Il doit être
-              exécuté pour que les quantités soient réellement déduites du stock.
-              L'action d'exécution n'est pas encore exposée par le backend.
-              Vérifiez auprès de l'administrateur que l'endpoint
-              /stock-destructions/{destruction.id}/apply/ est disponible.
-            </p>
-          )}
-
           <h6>Lignes de destruction</h6>
 
           {lines.length === 0 ? (
@@ -319,6 +312,7 @@ function StockDestructionForm({ items, entries, defaultItemId, onCreated, onCanc
             </p>
           )}
 
+          {destruction.status === 'recorded' && (
           <form className="form-shell" onSubmit={handleAddLine}>
             <div className="form-row">
               <label>
@@ -403,6 +397,7 @@ function StockDestructionForm({ items, entries, defaultItemId, onCreated, onCanc
               </button>
             </div>
           </form>
+          )}
         </>
       )}
     </div>
