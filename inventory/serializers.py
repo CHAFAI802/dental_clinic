@@ -112,6 +112,8 @@ class InventoryItemSerializer(serializers.ModelSerializer):
         return attrs
 
 class StockEntrySerializer(serializers.ModelSerializer):
+    received_by_name = serializers.SerializerMethodField()
+
     class Meta:
         model = StockEntry
         fields = [
@@ -126,6 +128,7 @@ class StockEntrySerializer(serializers.ModelSerializer):
             "batch_number",
             "expiration_date",
             "received_by",
+            "received_by_name",
             "comments",
         ]
         read_only_fields = [
@@ -134,6 +137,12 @@ class StockEntrySerializer(serializers.ModelSerializer):
             "received_by",
             "total_cost",
         ]
+
+    def get_received_by_name(self, obj):
+        user = obj.received_by
+        if user is None:
+            return None
+        return f"{user.first_name} {user.last_name}".strip()
 
     def validate(self, data):
         quantity = data.get(
@@ -174,6 +183,8 @@ class StockEntrySerializer(serializers.ModelSerializer):
 
 
 class StockExitSerializer(serializers.ModelSerializer):
+    used_by_name = serializers.SerializerMethodField()
+
     class Meta:
         model = StockExit
         fields = [
@@ -183,12 +194,19 @@ class StockExitSerializer(serializers.ModelSerializer):
             "quantity",
             "exited_at",
             "used_by",
+            "used_by_name",
             "usage_type",
             "comments",
             "selection_mode",
             "manual_allocations",
         ]
-        read_only_fields = ["id"]
+        read_only_fields = ["id", "used_by"]
+
+    def get_used_by_name(self, obj):
+        user = obj.used_by
+        if user is None:
+            return None
+        return f"{user.first_name} {user.last_name}".strip()
 
     def create(self, validated_data):
         allocations = validated_data.pop("manual_allocations", None)
@@ -214,6 +232,12 @@ class StockExitAllocationSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 class StockAlertSerializer(serializers.ModelSerializer):
+    expiration_date = serializers.DateField(
+        source="stock_entry.expiration_date",
+        read_only=True,
+        allow_null=True,
+    )
+
     class Meta:
         model = StockAlert
         fields = [
@@ -221,11 +245,13 @@ class StockAlertSerializer(serializers.ModelSerializer):
             "item",
             "alert_type",
             "current_quantity",
+            "expiration_date",
             "created_at",
         ]
         read_only_fields = [
             "id",
             "current_quantity",
+            "expiration_date",
             "created_at",
         ]
 

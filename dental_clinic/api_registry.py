@@ -6,6 +6,7 @@ ROLE_PERMISSIONS = {
         'IsAdministrator',
         'IsReceptionOrAdmin',
         'IsAccountantOrAdmin',
+        'CanManageStock',
         'IsStaffMember',
     },
 
@@ -13,6 +14,7 @@ ROLE_PERMISSIONS = {
         'IsAdministrator',
         'IsReceptionOrAdmin',
         'IsAccountantOrAdmin',
+        'CanManageStock',
         'IsStaffMember',
     },
 
@@ -29,11 +31,13 @@ ROLE_PERMISSIONS = {
     'receptionist': {
         'IsReceptionOrAdmin',
         'IsAppointmentManager',
+        'CanManageStock',
         'IsStaffMember',
     },
 
     'accountant': {
         'IsAccountantOrAdmin',
+        'CanManageStock',
         'IsStaffMember',
     },
 }
@@ -141,7 +145,7 @@ API_MODULES = [
         'name': 'Factures',
         'path': '/api/invoices/',
         'description': 'Facturation et devis',
-        'permission': 'IsAccountantOrAdmin',
+        'permission': 'CanManageStock',
         'app': 'billing',
     },
     {
@@ -173,7 +177,7 @@ API_MODULES = [
         'name': 'Inventaire',
         'path': '/api/inventory-items/',
         'description': 'Stock et consommables',
-        'permission': 'IsAccountantOrAdmin',
+        'permission': 'CanManageStock',
         'app': 'inventory',
     },
     {

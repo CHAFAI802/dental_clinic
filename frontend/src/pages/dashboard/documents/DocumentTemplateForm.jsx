@@ -1,6 +1,6 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
-import { apiPatch, apiPost } from '../../../api/client.js'
+import { apiGet, apiPatch, apiPost } from '../../../api/client.js'
 import { formatFileSize, splitApiErrors } from './helpers.js'
 
 /*
@@ -13,6 +13,7 @@ import { formatFileSize, splitApiErrors } from './helpers.js'
  *   - description : facultatif
  *   - file        : facultatif (blank=True, null=True), extension .docx
  *                   validée par validate_file côté serveur
+ *   - structure_config : type de document et modèle racine autorisé
  *   - is_active   : booléen, défaut true
  *   - id, created_at, updated_at : lecture seule
  *
@@ -34,15 +35,29 @@ function hasDocxExtension(file) {
   return Boolean(file && typeof file.name === 'string' && file.name.toLowerCase().endsWith('.docx'))
 }
 
+function readStructureConfig(value) {
+  try {
+    const config = JSON.parse(value)
+    return config && typeof config === 'object' && !Array.isArray(config) ? config : {}
+  } catch {
+    return {}
+  }
+}
+
 function DocumentTemplateForm({ template, onCancel, onSaved }) {
   const isEdit = Boolean(template)
 
   const [name, setName] = useState(template?.name ?? '')
   const [description, setDescription] = useState(template?.description ?? '')
+  const initialStructureConfig = JSON.stringify(template?.structure_config ?? {}, null, 2)
+  const [structureConfig, setStructureConfig] = useState(initialStructureConfig)
   const [isActive, setIsActive] = useState(template ? template.is_active !== false : true)
   const [file, setFile] = useState(null)
   const [errors, setErrors] = useState({})
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [catalog, setCatalog] = useState(null)
+  const [catalogError, setCatalogError] = useState('')
+  const [isLoadingCatalog, setIsLoadingCatalog] = useState(false)
 
   const fileInputRef = useRef(null)
 
@@ -52,6 +67,7 @@ function DocumentTemplateForm({ template, onCancel, onSaved }) {
   const isDirty =
     name !== initialName ||
     description !== initialDescription ||
+    structureConfig !== initialStructureConfig ||
     isActive !== initialIsActive ||
     file !== null
 
@@ -105,6 +121,59 @@ function DocumentTemplateForm({ template, onCancel, onSaved }) {
     onCancel()
   }
 
+  const loadCatalog = async () => {
+    setCatalogError('')
+    setIsLoadingCatalog(true)
+    try {
+      setCatalog(await apiGet('/document-templates/catalog/'))
+    } catch (error) {
+      const { general } = splitApiErrors(error)
+      setCatalogError(general)
+    } finally {
+      setIsLoadingCatalog(false)
+    }
+  }
+
+  useEffect(() => {
+    loadCatalog()
+    // Load the authorized variable catalog once when the form opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const parsedConfig = readStructureConfig(structureConfig)
+  const catalogs = Array.isArray(catalog?.catalogs) ? catalog.catalogs : []
+  const selectedCatalog = catalogs.find(
+    (item) =>
+      item.generation_enabled &&
+      item.document_type === parsedConfig.document_type &&
+      item.root_model === parsedConfig.root_model,
+  )
+
+  const updateConfig = (nextConfig) => {
+    setStructureConfig(JSON.stringify(nextConfig, null, 2))
+    setErrors((current) => {
+      const next = { ...current }
+      delete next.structure_config
+      return next
+    })
+  }
+
+  const selectDocumentType = (documentType) => {
+    const nextCatalog = catalogs.find(
+      (item) => item.document_type === documentType && item.generation_enabled,
+    )
+    if (!nextCatalog) {
+      updateConfig({})
+      return
+    }
+    updateConfig({
+      version: 1,
+      document_type: nextCatalog.document_type,
+      root_model: nextCatalog.root_model,
+      root_name: nextCatalog.root_name,
+    })
+  }
+
   const handleSubmit = async (event) => {
     event.preventDefault()
 
@@ -120,6 +189,20 @@ function DocumentTemplateForm({ template, onCancel, onSaved }) {
     if (file && !hasDocxExtension(file)) {
       nextErrors.file =
         'Le fichier sélectionné ne possède pas l’extension .docx. Sélectionnez un document Word.'
+    }
+
+    let parsedStructureConfig
+    try {
+      parsedStructureConfig = JSON.parse(structureConfig)
+      if (
+        parsedStructureConfig === null ||
+        typeof parsedStructureConfig !== 'object' ||
+        Array.isArray(parsedStructureConfig)
+      ) {
+        nextErrors.structure_config = 'La configuration doit être un objet JSON.'
+      }
+    } catch {
+      nextErrors.structure_config = 'La configuration doit être un JSON valide.'
     }
 
     if (Object.keys(nextErrors).length > 0) {
@@ -142,6 +225,7 @@ function DocumentTemplateForm({ template, onCancel, onSaved }) {
       const payload = {
         name: trimmedName,
         description: description.trim(),
+        structure_config: parsedStructureConfig,
         is_active: isActive,
       }
 
@@ -154,6 +238,7 @@ function DocumentTemplateForm({ template, onCancel, onSaved }) {
           const form = new FormData()
           form.append('name', payload.name)
           form.append('description', payload.description)
+          form.append('structure_config', JSON.stringify(payload.structure_config))
           form.append('is_active', String(payload.is_active))
           form.append('file', file)
           saved = await apiPatch(`/document-templates/${template.id}/`, form)
@@ -166,6 +251,7 @@ function DocumentTemplateForm({ template, onCancel, onSaved }) {
         const form = new FormData()
         form.append('name', payload.name)
         form.append('description', payload.description)
+        form.append('structure_config', JSON.stringify(payload.structure_config))
         form.append('is_active', String(payload.is_active))
         if (file) form.append('file', file)
         saved = await apiPost('/document-templates/', form)
@@ -212,6 +298,118 @@ function DocumentTemplateForm({ template, onCancel, onSaved }) {
             onChange={(event) => setDescription(event.target.value)}
           />
         </label>
+
+        <div className="form-shell">
+          <div className="dashboard-page-header">
+            <div>
+              <h4>Structure documentaire</h4>
+              <p className="muted">
+                Choisissez un type découvert par le serveur. Les variables et collections
+                ci-dessous sont celles autorisées par le backend.
+              </p>
+            </div>
+            <button
+              type="button"
+              className="btn btn-outline btn-sm"
+              onClick={loadCatalog}
+              disabled={isLoadingCatalog}
+            >
+              {isLoadingCatalog ? 'Chargement…' : 'Actualiser le catalogue'}
+            </button>
+          </div>
+          {isLoadingCatalog && <p role="status">Chargement du catalogue de variables…</p>}
+          {catalogError && (
+            <p className="error-text" role="alert">
+              {catalogError}
+            </p>
+          )}
+          {catalog && (
+            <>
+              <label htmlFor="doc-template-type">
+                Type de document
+                <select
+                  id="doc-template-type"
+                  value={selectedCatalog?.document_type || ''}
+                  onChange={(event) => selectDocumentType(event.target.value)}
+                >
+                  <option value="">Aucun type dynamique (modèle historique)</option>
+                  {catalogs
+                    .filter((item) => item.generation_enabled)
+                    .map((item) => (
+                      <option key={item.document_type} value={item.document_type}>
+                        {item.label}
+                      </option>
+                    ))}
+                </select>
+              </label>
+              <p className="muted">
+                Les ordonnances conservent leur workflow actuel et ne sont pas générées par ce
+                parcours.
+              </p>
+            </>
+          )}
+          {selectedCatalog && (
+            <>
+              <p className="muted">{selectedCatalog.description}</p>
+              <fieldset>
+                <legend>Variables détectées automatiquement</legend>
+                {Object.entries(selectedCatalog.variables || {})
+                  .reduce((groups, [variable, metadata]) => {
+                    const category = variable.split('.')[0]
+                    const group = groups.find((entry) => entry.name === category)
+                    if (group) group.variables.push([variable, metadata])
+                    else groups.push({ name: category, variables: [[variable, metadata]] })
+                    return groups
+                  }, [])
+                  .map((group) => (
+                    <div key={group.name}>
+                      <h5>{group.name}</h5>
+                      {group.variables.map(([variable, metadata]) => (
+                        <div key={variable}>
+                          <span>
+                            <strong>{metadata.label || variable}</strong> — <code>{variable}</code>
+                            <span className="muted">
+                              {' '}({metadata.type || 'type non précisé'}
+                              {metadata.kind ? `, ${metadata.kind}` : ''})
+                            </span>
+                            {metadata.description ? (
+                              <small className="muted"> {metadata.description}</small>
+                            ) : null}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+              </fieldset>
+
+              <div className="form-shell">
+                <h4>Collections disponibles</h4>
+                <ul>
+                  {Object.entries(selectedCatalog.collections || {}).map(
+                    ([collection, metadata]) => (
+                      <li key={collection}>
+                        <code>{collection}</code> — éléments <code>{metadata.item_name}.*</code>
+                      </li>
+                    ),
+                  )}
+                </ul>
+                <p className="muted">
+                  Les variables présentes dans le DOCX sont détectées et validées à
+                  l’enregistrement et à l’approbation. Les variables de collection dans une ligne
+                  de tableau répètent automatiquement cette ligne ; dans un paragraphe, leurs
+                  valeurs sont insérées à leur emplacement, séparées par des sauts de ligne.
+                  Une paire <code>{'{{ debut }}'}</code> / <code>{'{{ fin }}'}</code> peut délimiter
+                  le document ; elle est facultative et ne sert pas à configurer les collections.
+                </p>
+              </div>
+            </>
+          )}
+        </div>
+        {errors.structure_config && (
+          <p className="error-text" role="alert">
+            {errors.structure_config}
+          </p>
+        )}
 
         <div className="doc-file-field">
           <label htmlFor="doc-template-file">

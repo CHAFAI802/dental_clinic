@@ -102,7 +102,13 @@ export function requestErrorMessage(error, fallback = 'La requête a échoué.')
   return message
 }
 
-const TEMPLATE_FIELDS = new Set(['name', 'description', 'file', 'is_active'])
+const TEMPLATE_FIELDS = new Set([
+  'name',
+  'description',
+  'file',
+  'structure_config',
+  'is_active',
+])
 
 /*
  * Sépare les erreurs de validation DRF par champ (affichées sous le champ

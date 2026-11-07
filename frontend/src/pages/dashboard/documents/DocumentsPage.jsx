@@ -24,8 +24,8 @@ import { activeBadge, formatDateTime, mediaFileUrl, requestErrorMessage, splitAp
  *     → un modèle désactivé disparaît de la liste ET du détail (404),
  *       l'API actuelle ne permet donc pas de le réactiver.
  *
- * Aucun endpoint supplémentaire n'est simulé : seules les opérations
- * réellement exposées par le backend sont proposées.
+ * Le catalogue des variables est chargé depuis
+ * /api/document-templates/catalog/ par le formulaire de gestion.
  */
 
 function DocumentsPage() {
@@ -44,6 +44,8 @@ function DocumentsPage() {
 
   const [actionError, setActionError] = useState('')
   const [actionSuccess, setActionSuccess] = useState('')
+  const [validationResult, setValidationResult] = useState(null)
+  const [isValidatingId, setIsValidatingId] = useState(null)
   const [isDeactivatingId, setIsDeactivatingId] = useState(null)
   const [isApprovingId, setIsApprovingId] = useState(null)
   const [search, setSearch] = useState('')
@@ -91,6 +93,7 @@ function DocumentsPage() {
 
   const showList = () => {
     resetMessages()
+    setValidationResult(null)
     setView('list')
     setCurrent(null)
   }
@@ -109,6 +112,7 @@ function DocumentsPage() {
 
   const showDetails = (template) => {
     resetMessages()
+    setValidationResult(null)
     setCurrent(template)
     setView('details')
   }
@@ -159,6 +163,23 @@ function DocumentsPage() {
       setActionError(general)
     } finally {
       setIsApprovingId(null)
+    }
+  }
+
+  const handleValidate = async (template) => {
+    if (!canManage) return
+    resetMessages()
+    setValidationResult(null)
+    setIsValidatingId(template.id)
+    try {
+      const result = await apiPost(`/document-templates/${template.id}/validate/`, {})
+      setValidationResult({ templateId: template.id, result })
+      setActionSuccess('Le modèle DOCX est conforme à sa configuration.')
+    } catch (error) {
+      const { general } = splitApiErrors(error)
+      setActionError(general)
+    } finally {
+      setIsValidatingId(null)
     }
   }
 
@@ -231,7 +252,12 @@ function DocumentsPage() {
             <span className="badge" style={badge.style}>
               {badge.label}
             </span>
+            {' · '}
+            {template.is_approved ? 'Approuvé' : 'En attente d’approbation'}
           </dd>
+
+          <dt>Type documentaire</dt>
+          <dd>{template.structure_config?.document_type || 'Modèle historique'}</dd>
 
           <dt>Créé le</dt>
           <dd>{formatDateTime(template.created_at)}</dd>
@@ -255,6 +281,42 @@ function DocumentsPage() {
             )}
           </dd>
         </dl>
+        {canManage && (
+          <div className="doc-detail-actions">
+            <button
+              type="button"
+              className="btn btn-outline btn-sm"
+              onClick={() => handleValidate(template)}
+              disabled={isValidatingId === template.id}
+            >
+              {isValidatingId === template.id ? 'Validation…' : 'Valider le modèle DOCX'}
+            </button>
+          </div>
+        )}
+        {validationResult?.templateId === template.id && (
+          <div aria-live="polite">
+            <h4>Informations détectées par le serveur</h4>
+            <p>
+              Variables : {validationResult.result.variables.length > 0
+                ? validationResult.result.variables.join(', ')
+                : 'aucune'}
+            </p>
+            <p>
+              Zones : {validationResult.result.zones.length > 0
+                ? validationResult.result.zones
+                    .map((zone) => `${zone.name} (${zone.collection}, paire ${zone.marker_pair})`)
+                    .join('; ')
+                : 'aucune'}
+            </p>
+            <p>
+              Paires de marqueurs vérifiées : {validationResult.result.marker_pairs.length > 0
+                ? validationResult.result.marker_pairs
+                    .map((pair) => `${pair.index} → ${pair.zone}`)
+                    .join(', ')
+                : 'aucune'}
+            </p>
+          </div>
+        )}
       </div>
     )
   }
@@ -310,6 +372,7 @@ function DocumentsPage() {
               <th scope="col">Description</th>
               <th scope="col">Fichier</th>
               <th scope="col">État</th>
+              <th scope="col">Approbation</th>
               <th scope="col">Dernière modification</th>
               <th scope="col">Actions</th>
             </tr>
@@ -342,6 +405,9 @@ function DocumentsPage() {
                     <span className="badge" style={badge.style}>
                       {badge.label}
                     </span>
+                  </td>
+                  <td data-label="Approbation">
+                    {template.is_approved ? 'Approuvé' : 'En attente'}
                   </td>
                   <td data-label="Dernière modification">{formatDateTime(template.updated_at)}</td>
                   <td data-label="Actions" className="table-actions">

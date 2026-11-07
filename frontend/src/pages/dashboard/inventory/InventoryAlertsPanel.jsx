@@ -1,6 +1,12 @@
 import TableShell from '../../../components/dashboard/TableShell.jsx'
 import { SearchableTable } from '../../../components/dashboard/TableControls.jsx'
-import { alertBadge, formatAmount, formatDateTime, itemLabel } from './helpers.js'
+import {
+  alertBadge,
+  formatAmount,
+  formatDate,
+  formatDateTime,
+  itemLabel,
+} from './helpers.js'
 
 /*
  * Vue « Alertes » — API réelle :
@@ -8,9 +14,10 @@ import { alertBadge, formatAmount, formatDateTime, itemLabel } from './helpers.j
  *   GET /api/stock-alerts/   → lecture seule (ReadOnlyModelViewSet)
  *
  * Champs exposés : id, item, alert_type (low_stock | expiration),
- * current_quantity, created_at. Le champ `stock_entry` (lot concerné)
- * n’est PAS exposé par StockAlertSerializer : aucune information de lot ni
- * de date de péremption n’est donc affichée pour une alerte de péremption.
+ * current_quantity, expiration_date, created_at. `expiration_date` provient
+ * du lot concerné (`stock_entry.expiration_date`) et vaut null lorsqu’aucun
+ * lot n’est associé (alerte de stock faible) : la date n’est jamais déduite
+ * de `created_at`.
  *
  * Aucune alerte n’est créée depuis l’interface : le serveur les synchronise
  * lui-même à chaque mouvement de stock (StockAlert.sync_for_item).
@@ -58,7 +65,7 @@ function InventoryAlertsPanel({ alerts, items }) {
                 <th scope="col">Type</th>
                 <th scope="col">Quantité courante</th>
                 <th scope="col">Créée le</th>
-                <th scope="col">Lot</th>
+                <th scope="col">Péremption</th>
               </tr>
             </thead>
             <tbody>
@@ -76,8 +83,12 @@ function InventoryAlertsPanel({ alerts, items }) {
                       {formatAmount(alert.current_quantity)}
                     </td>
                     <td data-label="Créée le">{formatDateTime(alert.created_at)}</td>
-                    <td data-label="Lot">
-                      <span className="muted">Non exposé par l’API</span>
+                    <td data-label="Péremption">
+                      {alert.alert_type === 'expiration'
+                        ? (alert.expiration_date
+                            ? formatDate(alert.expiration_date)
+                            : 'Date de péremption indisponible')
+                        : '-'}
                     </td>
                   </tr>
                 )
@@ -88,11 +99,6 @@ function InventoryAlertsPanel({ alerts, items }) {
           )}
         />
       )}
-
-      <p className="muted">
-        Une alerte de péremption ne peut pas être rattachée à son lot depuis
-        cette API : le champ correspondant n’est pas sérialisé.
-      </p>
     </section>
   )
 }

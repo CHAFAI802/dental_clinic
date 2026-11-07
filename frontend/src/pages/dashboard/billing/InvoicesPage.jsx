@@ -2,9 +2,11 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { apiGet, apiPatch } from '../../../api/client.js'
 import TableShell from '../../../components/dashboard/TableShell.jsx'
+import DynamicDocumentGenerator from '../../../components/dashboard/DynamicDocumentGenerator.jsx'
 import {
   filterTableRows,
   paginateTableRows,
+  SearchableTable,
   TablePagination,
   TableSearch,
 } from '../../../components/dashboard/TableControls.jsx'
@@ -117,22 +119,22 @@ function InvoicesPage() {
   }, [])
 
   const selectedInvoice = useMemo(
-    () => invoices.find((invoice) => invoice.id === selectedId) || null,
+    () => invoices.find((invoice) => String(invoice.id) === String(selectedId)) || null,
     [invoices, selectedId],
   )
 
   const selectedLines = useMemo(
-    () => invoiceLines.filter((line) => line.invoice === selectedId),
+    () => invoiceLines.filter((line) => String(line.invoice) === String(selectedId)),
     [invoiceLines, selectedId],
   )
 
   const selectedPayments = useMemo(
-    () => payments.filter((payment) => payment.invoice === selectedId),
+    () => payments.filter((payment) => String(payment.invoice) === String(selectedId)),
     [payments, selectedId],
   )
 
   const selectedCreditNotes = useMemo(
-    () => creditNotes.filter((note) => note.invoice === selectedId),
+    () => creditNotes.filter((note) => String(note.invoice) === String(selectedId)),
     [creditNotes, selectedId],
   )
 
@@ -393,6 +395,14 @@ function InvoicesPage() {
               </div>
             ))}
           </div>
+
+          <DynamicDocumentGenerator
+            documentType="invoice"
+            objectId={selectedInvoice.id}
+            objectLabel={selectedInvoice.reference_number}
+            title="Générer / Voir la facture"
+            previewDocument
+          />
 
           {selectedInvoice.notes ? (
             <>

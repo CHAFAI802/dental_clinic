@@ -1,6 +1,8 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
+const apiProxyTarget = process.env.API_PROXY_TARGET || 'http://web:8000'
+
 export default defineConfig({
   plugins: [react()],
   build: {
@@ -12,7 +14,7 @@ export default defineConfig({
     strictPort: true,
     proxy: {
       '/api': {
-        target: 'http://web:8000',
+        target: apiProxyTarget,
         changeOrigin: true,
         secure: false,
         xfwd: true,
@@ -24,7 +26,7 @@ export default defineConfig({
       // retourné par l'API (ex. /media/document_templates/…) au serveur de
       // dev, qui le transmet à Django (volume Docker inchangé).
       '/media': {
-        target: 'http://web:8000',
+        target: apiProxyTarget,
         changeOrigin: true,
         secure: false,
         xfwd: true,

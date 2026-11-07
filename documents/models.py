@@ -9,6 +9,16 @@ class DocumentTemplate(TimestampedModel):
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     file = models.FileField(upload_to="document_templates/", blank=True, null=True)
+    structure_config = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=(
+            "Configuration documentaire JSON version 1 : type et modèle racine. "
+            "Les variables et collections sont détectées dans le fichier DOCX. "
+            "Les anciennes configurations avec zones répétitives restent prises "
+            "en charge."
+        ),
+    )
     is_active = models.BooleanField(default=True)
     is_approved = models.BooleanField(default=False)
     approved_by = models.ForeignKey(
@@ -26,14 +36,28 @@ class DocumentTemplate(TimestampedModel):
 
     def save(self, *args, **kwargs):
         update_fields = kwargs.get("update_fields")
-        if self.pk and (update_fields is None or "file" in update_fields):
-            previous_hash = (
+        if self.pk:
+            previous = (
                 type(self).objects.filter(pk=self.pk)
-                .values_list("approved_file_sha256", flat=True)
+                .values("approved_file_sha256", "structure_config")
                 .first()
             )
-            current_hash = file_sha256(self.file) if self.file else ""
-            if self.is_approved and current_hash != (previous_hash or ""):
+            file_may_have_changed = update_fields is None or "file" in update_fields
+            config_may_have_changed = (
+                update_fields is None or "structure_config" in update_fields
+            )
+            config_changed = (
+                config_may_have_changed
+                and previous is not None
+                and self.structure_config != previous["structure_config"]
+            )
+            file_changed = False
+            if self.is_approved and file_may_have_changed:
+                current_hash = file_sha256(self.file) if self.file else ""
+                file_changed = current_hash != (
+                    previous["approved_file_sha256"] if previous else ""
+                )
+            if self.is_approved and (config_changed or file_changed):
                 self.is_approved = False
                 self.approved_by = None
                 self.approved_at = None

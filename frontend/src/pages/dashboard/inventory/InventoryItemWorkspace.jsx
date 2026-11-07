@@ -468,11 +468,7 @@ function InventoryItemWorkspace({
                       <td data-label="Coût total">{formatAmount(entry.total_cost)}</td>
                       <td data-label="Lot">{entry.batch_number || '-'}</td>
                       <td data-label="Péremption">{formatDate(entry.expiration_date)}</td>
-                      <td data-label="Reçu par">
-                        {entry.received_by === null || entry.received_by === undefined
-                          ? '-'
-                          : `Utilisateur #${entry.received_by}`}
-                      </td>
+                      <td data-label="Reçu par">{entry.received_by_name || '-'}</td>
                       <td data-label="Commentaires">{entry.comments || '-'}</td>
                     </tr>
                   ))}
@@ -543,6 +539,7 @@ function InventoryItemWorkspace({
                     <th scope="col">Sortie</th>
                     <th scope="col">Quantité</th>
                     <th scope="col">Motif</th>
+                    <th scope="col">Effectuée par</th>
                     <th scope="col">Mode</th>
                     <th scope="col">Commentaires</th>
                     <th scope="col">Action</th>
@@ -555,6 +552,7 @@ function InventoryItemWorkspace({
                       <td data-label="Sortie">{formatDateTime(exit.exited_at)}</td>
                       <td data-label="Quantité">{formatAmount(exit.quantity)}</td>
                       <td data-label="Motif">{exit.usage_type || '-'}</td>
+                      <td data-label="Effectuée par">{exit.used_by_name || '-'}</td>
                       <td data-label="Mode">{exit.selection_mode || '-'}</td>
                       <td data-label="Commentaires">{exit.comments || '-'}</td>
                       <td data-label="Action" className="table-actions">
@@ -782,7 +780,7 @@ function InventoryItemWorkspace({
                     Quantité courante : {formatAmount(alert.current_quantity)} · créée le{' '}
                     {formatDateTime(alert.created_at)}
                     {alert.alert_type === 'expiration' &&
-                      ' · le lot concerné n’est pas exposé par cette API.'}
+                      ` · Péremption : ${formatDate(alert.expiration_date)}`}
                   </li>
                 )
               })}

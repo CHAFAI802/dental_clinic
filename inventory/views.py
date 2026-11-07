@@ -22,8 +22,19 @@ class SupplierViewset(viewsets.ModelViewSet):
 class InventoryFamilyViewset(viewsets.ModelViewSet):
     serializer_class = InventoryFamilySerializer
     permission_classes = [IsAdministrator]
+
     def get_queryset(self):
         return InventoryFamily.objects.all()
+
+    @action(
+        detail=False,
+        methods=["get"],
+        url_path="document-options",
+        permission_classes=[CanManageStock],
+    )
+    def document_options(self, request):
+        families = InventoryFamily.objects.filter(is_active=True).order_by("name")
+        return Response(list(families.values("id", "name", "code")))
 
 class UnitViewset(viewsets.ModelViewSet):
     serializer_class = UnitSerializer
@@ -42,7 +53,7 @@ class StockEntryViewset(viewsets.ModelViewSet):
     permission_classes = [CanManageStock]
 
     def get_queryset(self):
-        return StockEntry.objects.all()
+        return StockEntry.objects.select_related("received_by", "supplier").all()
 
     def perform_create(self, serializer):
         serializer.save(received_by=self.request.user)
@@ -58,11 +69,11 @@ class StockExitViewset(viewsets.ModelViewSet):
     permission_classes = [CanManageStock]
 
     def get_queryset(self):
-        return StockExit.objects.all()
+        return StockExit.objects.select_related("used_by").all()
 
     def perform_create(self, serializer):
         try:
-            serializer.save()
+            serializer.save(used_by=self.request.user)
         except ValidationError as exc:
             raise serializers.ValidationError(exc.messages)
 
@@ -76,7 +87,7 @@ class StockAlertViewset(viewsets.ReadOnlyModelViewSet):
     serializer_class = StockAlertSerializer
     permission_classes = [CanManageStock]
     def get_queryset(self):
-        return StockAlert.objects.all()
+        return StockAlert.objects.select_related("stock_entry").all()
 
 class StockDestructionViewset(viewsets.ModelViewSet):
     serializer_class = StockDestructionSerializer

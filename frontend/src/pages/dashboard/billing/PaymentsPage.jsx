@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 
 import { apiDelete, apiGet, apiPost } from '../../../api/client.js'
+import DynamicDocumentGenerator from '../../../components/dashboard/DynamicDocumentGenerator.jsx'
 import TableShell from '../../../components/dashboard/TableShell.jsx'
 import {
   filterTableRows,
@@ -46,6 +47,7 @@ function PaymentsPage() {
   const [formValues, setFormValues] = useState(EMPTY_FORM)
   const [isCreating, setIsCreating] = useState(false)
   const [isDeletingId, setIsDeletingId] = useState(null)
+  const [receiptPaymentId, setReceiptPaymentId] = useState(null)
   const [actionError, setActionError] = useState('')
   const [actionSuccess, setActionSuccess] = useState('')
   const [search, setSearch] = useState('')
@@ -437,32 +439,57 @@ function PaymentsPage() {
             </thead>
             <tbody>
               {displayedPayments.map((payment) => (
-                <tr key={payment.id}>
-                  <td>{formatDateTime(payment.payment_at)}</td>
-                  <td>{invoiceLabel(payment.invoice)}</td>
-                  <td>{patientLabel(payment.patient, patientLabels)}</td>
-                  <td>{formatAmount(payment.amount)}</td>
-                  <td>{methodLabel(payment.method)}</td>
-                  <td>{payment.reference || '-'}</td>
-                  <td>{paymentStatusLabel(payment.status)}</td>
-                  <td>
-                    {payment.paid_by === null || payment.paid_by === undefined
-                      ? '-'
-                      : `#${payment.paid_by}`}
-                  </td>
-                  {canManagePayments && (
-                    <td className="table-actions">
-                      <button
-                        type="button"
-                        className="danger-link"
-                        onClick={() => handleDelete(payment)}
-                        disabled={isDeletingId === payment.id}
-                      >
-                        {isDeletingId === payment.id ? 'Suppression…' : 'Supprimer'}
-                      </button>
+                <Fragment key={payment.id}>
+                  <tr>
+                    <td>{formatDateTime(payment.payment_at)}</td>
+                    <td>{invoiceLabel(payment.invoice)}</td>
+                    <td>{patientLabel(payment.patient, patientLabels)}</td>
+                    <td>{formatAmount(payment.amount)}</td>
+                    <td>{methodLabel(payment.method)}</td>
+                    <td>{payment.reference || '-'}</td>
+                    <td>{paymentStatusLabel(payment.status)}</td>
+                    <td>
+                      {payment.paid_by === null || payment.paid_by === undefined
+                        ? '-'
+                        : `#${payment.paid_by}`}
                     </td>
+                    {canManagePayments && (
+                      <td className="table-actions">
+                        <button
+                          type="button"
+                          className="btn btn-outline btn-sm"
+                          onClick={() =>
+                            setReceiptPaymentId((current) =>
+                              current === payment.id ? null : payment.id,
+                            )
+                          }
+                        >
+                          {receiptPaymentId === payment.id ? 'Fermer' : 'Générer reçu'}
+                        </button>
+                        <button
+                          type="button"
+                          className="danger-link"
+                          onClick={() => handleDelete(payment)}
+                          disabled={isDeletingId === payment.id}
+                        >
+                          {isDeletingId === payment.id ? 'Suppression…' : 'Supprimer'}
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                  {receiptPaymentId === payment.id && (
+                    <tr key={`${payment.id}-receipt`}>
+                      <td colSpan={9}>
+                        <DynamicDocumentGenerator
+                          documentType="payment"
+                          objectId={payment.id}
+                          objectLabel={payment.reference || `n° ${payment.id}`}
+                          title="Générer le reçu de paiement"
+                        />
+                      </td>
+                    </tr>
                   )}
-                </tr>
+                </Fragment>
               ))}
             </tbody>
           </table>

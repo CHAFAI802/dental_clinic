@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { apiGet } from '../../../api/client.js'
 import TableShell from '../../../components/dashboard/TableShell.jsx'
+import DynamicDocumentGenerator from '../../../components/dashboard/DynamicDocumentGenerator.jsx'
 import {
   paginateTableRows,
   TablePagination,
@@ -42,8 +43,8 @@ import {
  * Aucun ViewSet ne déclare de filtre serveur ni de pagination : les listes
  * sont des tableaux JSON, lues une fois puis filtrées côté client
  * (convention du module Facturation). Les rôles CanManageStock sont
- * super_admin, administrator, accountant et receptionist ; le module
- * n’est proposé par le backend qu’aux rôles IsAccountantOrAdmin.
+ * super_admin, administrator, accountant et receptionist ; le registre
+ * de modules expose l’inventaire à ces mêmes rôles.
  */
 
 const VIEWS = [
@@ -51,11 +52,13 @@ const VIEWS = [
   { id: 'movements', label: 'Mouvements' },
   { id: 'alerts', label: 'Alertes' },
   { id: 'references', label: 'Références' },
+  { id: 'documents', label: 'Documents DOCX' },
 ]
 
 const DATASETS = [
   ['items', '/inventory-items/'],
   ['families', '/inventory-families/'],
+  ['documentFamilies', '/inventory-families/document-options/'],
   ['categories', '/inventory-categories/'],
   ['units', '/units/'],
   ['suppliers', '/suppliers/'],
@@ -70,6 +73,7 @@ const DATASETS = [
 const EMPTY_DATA = {
   items: [],
   families: [],
+  documentFamilies: [],
   categories: [],
   units: [],
   suppliers: [],
@@ -96,6 +100,7 @@ function InventoryPage() {
 
   const [activeView, setActiveView] = useState('workspace')
   const [selectedItemId, setSelectedItemId] = useState(null)
+  const [selectedFamilyId, setSelectedFamilyId] = useState('')
   const [search, setSearch] = useState('')
   const [familyFilter, setFamilyFilter] = useState('')
   const [page, setPage] = useState(1)
@@ -143,7 +148,7 @@ function InventoryPage() {
     load()
   }, [load])
 
-  const { items, families, categories, units, suppliers } = data
+  const { items, families, documentFamilies, categories, units, suppliers } = data
 
   const filteredItems = useMemo(() => {
     const query = normalizeSearch(search.trim())
@@ -174,7 +179,9 @@ function InventoryPage() {
     items.find((item) => String(item.id) === String(selectedItemId)) || null
 
   const visibleViews = VIEWS.filter(
-    (view) => view.id !== 'references' || catalogRole,
+    (view) => view.id === 'documents'
+      ? stockRole
+      : view.id !== 'references' || catalogRole,
   )
 
   if (loadError) {
@@ -443,6 +450,49 @@ function InventoryPage() {
           <p className="muted">
             La gestion des références exige le rôle administrateur.
           </p>
+        )}
+      </section>
+
+      <section
+        className="patient-workspace-panel"
+        aria-label="Génération documentaire de stock"
+        hidden={activeView !== 'documents'}
+      >
+        {stockRole ? (
+          <div className="card">
+            <h3 className="card-title">Générer un état de stock</h3>
+            <p className="muted">
+              Choisissez une famille pour inclure ses articles et quantités actuelles.
+              Cette génération est en lecture seule et ne crée aucun mouvement de stock.
+            </p>
+            <label>
+              Famille d’articles
+              <select
+                value={selectedFamilyId}
+                onChange={(event) => setSelectedFamilyId(event.target.value)}
+                disabled={documentFamilies.length === 0}
+              >
+                <option value="">Sélectionner une famille</option>
+                {documentFamilies.map((family) => (
+                  <option key={family.id} value={family.id}>
+                    {familyLabel(documentFamilies, family.id)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {documentFamilies.length === 0 ? (
+              <p className="muted">Aucune famille d’articles disponible.</p>
+            ) : (
+              <DynamicDocumentGenerator
+                documentType="inventory"
+                objectId={selectedFamilyId}
+                objectLabel={familyLabel(documentFamilies, selectedFamilyId)}
+                title="Générer la liste d’articles de la famille"
+              />
+            )}
+          </div>
+        ) : (
+          <p className="muted">La génération de documents de stock est inaccessible avec ce rôle.</p>
         )}
       </section>
 

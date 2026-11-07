@@ -20,6 +20,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from accounts.models import User
+from dental_clinic.api_registry import get_accessible_modules
 from inventory.models import (
     InventoryCategory,
     InventoryFamily,
@@ -98,6 +99,26 @@ class InventoryAPIPermissionTests(APITestCase):
                         status.HTTP_200_OK,
                     )
 
+    def test_document_options_are_readable_by_stock_managers_only(self):
+        for role in CAN_MANAGE_STOCK_ROLES:
+            with self.subTest(role=role):
+                self.client.force_authenticate(user=self.users[role])
+                response = self.client.get(
+                    "/api/inventory-families/document-options/"
+                )
+                self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        for role in (User.Role.DENTIST, User.Role.ASSISTANT):
+            with self.subTest(role=role):
+                self.client.force_authenticate(user=self.users[role])
+                response = self.client.get(
+                    "/api/inventory-families/document-options/"
+                )
+                self.assertEqual(
+                    response.status_code,
+                    status.HTTP_403_FORBIDDEN,
+                )
+
     def test_dentist_and_assistant_are_denied_on_stock_endpoints(self):
         for role in (User.Role.DENTIST, User.Role.ASSISTANT):
             for url_name in CAN_MANAGE_STOCK_ENDPOINTS:
@@ -147,6 +168,15 @@ class InventoryAPIPermissionTests(APITestCase):
         response = self._get("inventory-item-list", user)
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_inventory_module_is_visible_to_stock_managers(self):
+        for role in CAN_MANAGE_STOCK_ROLES:
+            with self.subTest(role=role):
+                modules = get_accessible_modules(self.users[role])
+                self.assertIn(
+                    "inventory-items",
+                    {module["id"] for module in modules},
+                )
 
 
 class CatalogAPITests(APITestCase):

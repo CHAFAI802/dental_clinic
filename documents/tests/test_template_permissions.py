@@ -1,6 +1,9 @@
+import json
+from io import BytesIO
 from tempfile import TemporaryDirectory
 
 from django.contrib.admin.sites import AdminSite
+from docx import Document as WordDocument
 from django.test import RequestFactory
 from django.test import override_settings
 from rest_framework.test import APITestCase
@@ -171,6 +174,84 @@ class DocumentTemplatePermissionTests(APITestCase):
         self.assertEqual(update_response.status_code, 200)
         created.refresh_from_db()
         self.assertEqual(created.description, "Updated")
+
+    def test_dynamic_configuration_is_persisted_and_catalog_is_exposed(self):
+        document = WordDocument()
+        document.add_paragraph("Facture {{ invoice.reference_number }}")
+        document.add_paragraph("Patient {{ invoice.patient.first_name }}")
+        table = document.add_table(rows=1, cols=2)
+        table.cell(0, 0).text = "{{ debut }}{{ line.description }}"
+        table.cell(0, 1).text = "{{ line.quantity }}{{ fin }}"
+        content = BytesIO()
+        document.save(content)
+        structure_config = {
+            "version": 1,
+            "document_type": "invoice",
+            "root_model": "billing.Invoice",
+            "root_name": "invoice",
+            "variables": [
+                "invoice.reference_number",
+                "invoice.patient.first_name",
+                "line.description",
+                "line.quantity",
+            ],
+            "zones": [
+                {
+                    "name": "invoice_lines",
+                    "type": "repeat_row",
+                    "collection": "invoice.lines",
+                    "item_name": "line",
+                    "marker_pair": 1,
+                }
+            ],
+        }
+
+        response = self.client.post(
+            "/api/document-templates/",
+            {
+                "name": "Facture dynamique",
+                "file": SimpleUploadedFile(
+                    "invoice.docx",
+                    content.getvalue(),
+                ),
+                "structure_config": json.dumps(structure_config),
+            },
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, 201, response.data)
+        template = DocumentTemplate.objects.get(pk=response.data["id"])
+        self.assertEqual(template.structure_config, structure_config)
+        self.assertEqual(response.data["structure_config"], structure_config)
+
+        catalog_response = self.client.get("/api/document-templates/catalog/")
+        self.assertEqual(catalog_response.status_code, 200)
+        invoice_catalog = next(
+            item
+            for item in catalog_response.data["catalogs"]
+            if item["root_model"] == "billing.Invoice"
+        )
+        self.assertIn("invoice.reference_number", invoice_catalog["variables"])
+        self.assertIn("invoice.lines", invoice_catalog["collections"])
+        inventory_catalog = next(
+            item
+            for item in catalog_response.data["catalogs"]
+            if item["root_model"] == "inventory.InventoryFamily"
+        )
+        self.assertIn("inventory.items", inventory_catalog["collections"])
+
+        invalid_config = {
+            **structure_config,
+            "variables": ["invoice.patient.social_security_number"],
+        }
+        update_response = self.client.patch(
+            f"/api/document-templates/{template.pk}/",
+            {"structure_config": invalid_config},
+            format="json",
+        )
+        self.assertEqual(update_response.status_code, 400)
+        template.refresh_from_db()
+        self.assertEqual(template.structure_config, structure_config)
 
     def test_invalid_or_non_docx_upload_is_rejected(self):
         for filename, content in (
