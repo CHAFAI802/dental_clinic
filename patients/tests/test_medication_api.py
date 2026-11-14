@@ -6,7 +6,10 @@ Ces tests exécutent exactement les requêtes envoyées par le frontend
     GET|POST /api/medications/?patient=<id>
     PATCH    /api/medications/<id>/
     POST     /api/prescriptions/generate-from-document-template/
-                 {patient, document_template, medications:[ids], notes}
+                 {patient, appointment, document_template, medications:[ids], notes}
+
+Le rendez-vous doit appartenir au dentiste connecté et au patient indiqué,
+être confirmé et être en cours au moment de la génération.
 
 et vérifient la réponse, le fichier DOCX produit et les règles backend
 (modèle actif et approuvé, rattachement patient/dentiste, rôles).
@@ -30,7 +33,7 @@ from documents.models import DocumentTemplate
 from documents.tests.docx_fixtures import load_real_template_bytes
 from patients.models import Medication, Patient
 from prescriptions.models import Prescription
-
+from billing.models import Prestation, PrestationCategory
 
 def _document_text(document):
     """Texte complet d'un DOCX : corps, tableaux, en-têtes et pieds de page."""
@@ -87,12 +90,13 @@ class MedicationApiTests(APITestCase):
             last_name="Durand",
             phone="06 12 34 56 78",
         )
-        starts = timezone.now() + timedelta(days=1)
-        Appointment.objects.create(
+        now = timezone.now()
+        self.appointment = Appointment.objects.create(
             patient=self.patient,
             practitioner=self.dentist,
-            start_at=starts,
-            end_at=starts + timedelta(minutes=30),
+            start_at=now - timedelta(minutes=10),
+            end_at=now + timedelta(minutes=30),
+            status=Appointment.Status.CONFIRMED,
         )
         self.foreign_patient = Patient.objects.create(
             first_name="Patient",
@@ -350,12 +354,25 @@ class FrontendGenerationFlowTests(APITestCase):
             birthdate=date(1990, 3, 15),
             phone="06 12 34 56 78",
         )
-        starts = timezone.now() + timedelta(days=1)
-        Appointment.objects.create(
+        self.prestation_category = PrestationCategory.objects.create(
+            name="Document traitement",
+            code="DOC-TRAIT",
+            is_active=True,
+        )
+        self.prescription_prestation = Prestation.objects.create(
+            category=self.prestation_category,
+            code="PRESC",
+            label="Acte de prescrire",
+            is_active=True,
+        )
+
+        now = timezone.now()
+        self.appointment = Appointment.objects.create(
             patient=self.patient,
             practitioner=self.dentist,
-            start_at=starts,
-            end_at=starts + timedelta(minutes=30),
+            start_at=now - timedelta(minutes=10),
+            end_at=now + timedelta(minutes=30),
+            status=Appointment.Status.CONFIRMED,
         )
 
         # Véritable modèle Word approuvé via la vraie endpoint d'approbation.
@@ -418,6 +435,7 @@ class FrontendGenerationFlowTests(APITestCase):
             "/api/prescriptions/generate-from-document-template/",
             {
                 "patient": self.patient.pk,
+                "appointment": self.appointment.pk,
                 "document_template": self.template.pk,
                 "medications": [first["id"], second["id"]],
                 "notes": "Contrôle post-opératoire",
@@ -480,6 +498,7 @@ class FrontendGenerationFlowTests(APITestCase):
             "/api/prescriptions/generate-from-document-template/",
             {
                 "patient": self.patient.pk,
+                "appointment": self.appointment.pk,
                 "document_template": pending.pk,
                 "medications": [medication["id"]],
                 "notes": "",
@@ -501,6 +520,7 @@ class FrontendGenerationFlowTests(APITestCase):
             "/api/prescriptions/generate-from-document-template/",
             {
                 "patient": self.patient.pk,
+                "appointment": self.appointment.pk,
                 "document_template": self.template.pk,
                 "medications": [medication["id"]],
                 "notes": "",
@@ -517,6 +537,7 @@ class FrontendGenerationFlowTests(APITestCase):
             "/api/prescriptions/generate-from-document-template/",
             {
                 "patient": self.patient.pk,
+                "appointment": self.appointment.pk,
                 "document_template": self.template.pk,
                 "medications": [],
                 "notes": "",
@@ -536,6 +557,7 @@ class FrontendGenerationFlowTests(APITestCase):
             "/api/prescriptions/generate-from-document-template/",
             {
                 "patient": self.patient.pk,
+                "appointment": self.appointment.pk,
                 "document_template": self.template.pk,
                 "medications": [medication["id"]],
                 "notes": "",
@@ -555,7 +577,8 @@ class FrontendGenerationFlowTests(APITestCase):
         )
         # Médicament appartenant au patient non rattaché et prescrit par ce
         # dentiste (créé ici directement : l'endpoint /api/medications/ refuse
-        # déjà un tel patient) — seule faute : l'absence de lien patient/dentiste.
+        # déjà un tel patient). Le rendez-vous fourni appartient à self.patient,
+        # pas à ce patient : la validation de séance doit le refuser.
         Medication.objects.create(
             patient=unlinked,
             prescribed_by=self.dentist,
@@ -571,6 +594,7 @@ class FrontendGenerationFlowTests(APITestCase):
             "/api/prescriptions/generate-from-document-template/",
             {
                 "patient": unlinked.pk,
+                "appointment": self.appointment.pk,
                 "document_template": self.template.pk,
                 "medications": [medication.pk],
                 "notes": "",
@@ -578,7 +602,8 @@ class FrontendGenerationFlowTests(APITestCase):
             format="json",
         )
 
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("appointment", response.data)
         self.assertFalse(Prescription.objects.exists())
         self.assertEqual(self._generated_files(), [])
 
@@ -596,6 +621,7 @@ class FrontendGenerationFlowTests(APITestCase):
             "/api/prescriptions/generate-from-document-template/",
             {
                 "patient": other_patient.pk,
+                "appointment": self.appointment.pk,
                 "document_template": self.template.pk,
                 "medications": [medication["id"]],
                 "notes": "",
