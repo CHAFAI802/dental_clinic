@@ -1,0 +1,285 @@
+name: dental-prod
+
+services:
+
+  db:
+    mem_limit: 2g
+    cpus: "1.0"
+    pids_limit: 128
+    image: postgres:16-alpine
+    restart: unless-stopped
+
+    environment:
+      DEBUG: "False"
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY requis}
+      DATABASE_URL: ${DATABASE_URL_MIGRATOR:?DATABASE_URL_MIGRATOR requis}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:?ALLOWED_HOSTS requis}
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+
+
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+
+    expose:
+      - "5432"
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dental -d dental"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+    networks:
+      - dental_web_db
+      - dental_scheduler_db
+
+
+  db-init:
+    mem_limit: 512m
+    cpus: "0.5"
+    pids_limit: 128
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    image: dental-prod-web:local
+    restart: "no"
+    command: ["python", "docker/init_prod_db.py"]
+
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD requis}
+      DATABASE_URL_MIGRATOR: ${DATABASE_URL_MIGRATOR:?DATABASE_URL_MIGRATOR requis}
+      DATABASE_URL_RUNTIME: ${DATABASE_URL_RUNTIME:?DATABASE_URL_RUNTIME requis}
+
+    depends_on:
+      db:
+        condition: service_healthy
+
+    networks:
+      - dental_web_db
+
+
+  migrate:
+    mem_limit: 1g
+    cpus: "1.5"
+    pids_limit: 128
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    image: dental-prod-web:local
+    restart: "no"
+    command: ["python", "manage.py", "migrate", "--noinput"]
+
+    environment:
+      DEBUG: "False"
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY requis}
+      DATABASE_URL: ${DATABASE_URL_MIGRATOR:?DATABASE_URL_MIGRATOR requis}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:?ALLOWED_HOSTS requis}
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+
+      DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:?DEFAULT_FROM_EMAIL requis}
+      EMAIL_HOST: ${EMAIL_HOST:?EMAIL_HOST requis}
+      EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:?EMAIL_HOST_PASSWORD requis}
+      EMAIL_HOST_USER: ${EMAIL_HOST_USER:?EMAIL_HOST_USER requis}
+      EMAIL_PORT: ${EMAIL_PORT:-587}
+      EMAIL_USE_TLS: ${EMAIL_USE_TLS:-True}
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+
+    networks:
+      - dental_web_db
+
+
+  assets:
+    mem_limit: 512m
+    cpus: "1.0"
+    pids_limit: 128
+    image: dental-prod-web:local
+    restart: "no"
+    command: ["python", "manage.py", "collectstatic", "--noinput"]
+
+    environment:
+      DEBUG: "False"
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY requis}
+      DATABASE_URL: ${DATABASE_URL_RUNTIME:?DATABASE_URL_RUNTIME requis}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:?ALLOWED_HOSTS requis}
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+
+      DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:?DEFAULT_FROM_EMAIL requis}
+      EMAIL_HOST: ${EMAIL_HOST:?EMAIL_HOST requis}
+      EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:?EMAIL_HOST_PASSWORD requis}
+      EMAIL_HOST_USER: ${EMAIL_HOST_USER:?EMAIL_HOST_USER requis}
+      EMAIL_PORT: ${EMAIL_PORT:-587}
+      EMAIL_USE_TLS: ${EMAIL_USE_TLS:-True}
+    volumes:
+      - static_prod_data:/app/staticfiles
+
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+    networks:
+      - dental_web_db
+
+
+  web:
+    mem_limit: 2g
+    cpus: "1.5"
+    pids_limit: 128
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+
+    image: dental-prod-web:local
+    restart: unless-stopped
+
+    environment:
+      DEBUG: "False"
+
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY requis}
+      DATABASE_URL: ${DATABASE_URL_RUNTIME:?DATABASE_URL_RUNTIME requis}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:?ALLOWED_HOSTS requis}
+      CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:?CSRF_TRUSTED_ORIGINS requis}
+
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+
+      EMAIL_HOST: ${EMAIL_HOST:?EMAIL_HOST requis}
+      EMAIL_PORT: ${EMAIL_PORT:-587}
+      EMAIL_USE_TLS: ${EMAIL_USE_TLS:-True}
+      EMAIL_HOST_USER: ${EMAIL_HOST_USER:?EMAIL_HOST_USER requis}
+      EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:?EMAIL_HOST_PASSWORD requis}
+      DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:?DEFAULT_FROM_EMAIL requis}
+
+      API_EMAIL: ${API_EMAIL:-}
+      API_PASSWORD: ${API_PASSWORD:-}
+
+    volumes:
+      - media_prod_data:/app/media
+
+    expose:
+      - "8000"
+
+    depends_on:
+      assets:
+        condition: service_completed_successfully
+
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/links/', timeout=3)"
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+    networks:
+      - dental_frontend_web
+      - dental_web_db
+
+
+  scheduler:
+    mem_limit: 384m
+    cpus: "0.5"
+    pids_limit: 64
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+
+    image: dental-prod-web:local
+    restart: unless-stopped
+
+    command: ["python", "manage.py", "close_expired_appointments", "--interval", "30"]
+
+    environment:
+      DEBUG: "False"
+
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY requis}
+      DATABASE_URL: ${DATABASE_URL_RUNTIME:?DATABASE_URL_RUNTIME requis}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:?ALLOWED_HOSTS requis}
+
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+
+      API_EMAIL: ${API_EMAIL:-}
+      API_PASSWORD: ${API_PASSWORD:-}
+
+
+      DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:?DEFAULT_FROM_EMAIL requis}
+      EMAIL_HOST: ${EMAIL_HOST:?EMAIL_HOST requis}
+      EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:?EMAIL_HOST_PASSWORD requis}
+      EMAIL_HOST_USER: ${EMAIL_HOST_USER:?EMAIL_HOST_USER requis}
+      EMAIL_PORT: ${EMAIL_PORT:-587}
+      EMAIL_USE_TLS: ${EMAIL_USE_TLS:-True}
+    volumes:
+      - media_prod_data:/app/media
+
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+    networks:
+      - dental_scheduler_db
+
+
+  frontend:
+    mem_limit: 256m
+    cpus: "0.5"
+    pids_limit: 64
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+
+    image: dental-prod-frontend:local
+    restart: unless-stopped
+
+    expose:
+      - "80"
+
+    volumes:
+      - static_prod_data:/usr/share/nginx/static:ro
+
+    depends_on:
+      web:
+        condition: service_healthy
+
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+    networks:
+      - dental_frontend_web
+
+
+volumes:
+
+  postgres_prod_data:
+    name: dental_prod_postgres_data
+
+  media_prod_data:
+    name: dental_prod_media_data
+
+  static_prod_data:
+    name: dental_prod_static_data
+
+
+networks:
+  dental_frontend_web:
+    name: dental_frontend_web
+    driver: bridge
+
+  dental_web_db:
+    name: dental_web_db
+    driver: bridge
+
+  dental_scheduler_db:
+    name: dental_scheduler_db
+    driver: bridge

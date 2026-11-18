@@ -209,7 +209,9 @@ broker.db
 # ========================================
 *.pid
 docker-compose.override.yml
-.dockerignore
+# Docker ignore files are versioned
+!.dockerignore
+!**/.dockerignore
 
 # ========================================
 # PYTHON PACKAGES
@@ -243,3 +245,11 @@ TAGS
 
 # Browser Bridge est un dépôt indépendant.
 /browser_bridge/
+
+# Sauvegardes locales datées
+.env.backup-*
+*.backup-*
+
+# Sauvegardes locales datées
+.env.backup-*
+*.backup-*

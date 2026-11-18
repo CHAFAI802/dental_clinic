@@ -1,0 +1,4 @@
+app.elqodsdental.com {
+    encode zstd gzip
+    reverse_proxy frontend:80
+}

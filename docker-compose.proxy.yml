@@ -1,0 +1,38 @@
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: dental-caddy
+    restart: unless-stopped
+
+    ports:
+      - "179.67.198.151:80:80"
+      - "179.67.198.151:443:443"
+
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+    networks:
+      dental_proxy_network:
+        ipv4_address: 172.20.0.2
+
+    mem_limit: 256m
+    cpus: "0.5"
+    pids_limit: 64
+
+volumes:
+  caddy_data:
+    name: dental_caddy_data
+
+  caddy_config:
+    name: dental_caddy_config
+
+networks:
+  dental_proxy_network:
+    name: dental_proxy_network
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24
+          gateway: 172.20.0.1

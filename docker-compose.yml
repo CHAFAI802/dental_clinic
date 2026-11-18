@@ -2,12 +2,10 @@ services:
   db:
     image: postgres:16-alpine
 
-    ports:
-      - "5432:5432"
     environment:
       POSTGRES_DB: dental # This sets the name of the database to "dental"
       POSTGRES_USER: dental # This sets the username for the database to "dental" to be modified
-      POSTGRES_PASSWORD: dental # This sets the password for the database user to "dental"
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD requis}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:

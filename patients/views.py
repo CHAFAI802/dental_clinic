@@ -42,12 +42,34 @@ class PractitionerPatientViewSet(
             appointments__is_deleted=False,
         ).distinct()
 
+def get_linked_patients_for_dentist(user):
+    """
+    Patients accessibles au dentiste :
+    au moins un rendez-vous non supprimé OU un traitement non supprimé.
+    """
+    return Patient.objects.filter(
+        Q(
+            appointments__practitioner=user,
+            appointments__is_deleted=False,
+        )
+        | Q(
+            treatments__dentist=user,
+            treatments__is_deleted=False,
+        )
+    ).distinct()
+
+
 class MedicalHistoryViewSet(viewsets.ModelViewSet):
     serializer_class = MedicalHistorySerializer
     permission_classes = [IsDentist]
 
+    def get_linked_patients(self):
+        return get_linked_patients_for_dentist(self.request.user)
+
     def get_queryset(self):
-        queryset = MedicalHistory.objects.all()
+        queryset = MedicalHistory.objects.filter(
+            patient__in=self.get_linked_patients()
+        )
         patient_id = self.request.query_params.get("patient")
 
         if patient_id:
@@ -57,7 +79,15 @@ class MedicalHistoryViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         patient_id = self.request.query_params.get("patient")
-        patient = Patient.objects.get(id=patient_id)
+        if not patient_id:
+            raise ValidationError(
+                {"patient": "Le paramètre patient est requis ( ?patient=<id> )."}
+            )
+
+        patient = get_object_or_404(
+            self.get_linked_patients(),
+            pk=patient_id,
+        )
         serializer.save(patient=patient)
 
 
@@ -65,8 +95,13 @@ class AllergyViewSet(viewsets.ModelViewSet):
     serializer_class = AllergySerializer
     permission_classes = [IsDentist]
 
+    def get_linked_patients(self):
+        return get_linked_patients_for_dentist(self.request.user)
+
     def get_queryset(self):
-        queryset = Allergy.objects.all()
+        queryset = Allergy.objects.filter(
+            patient__in=self.get_linked_patients()
+        )
         patient_id = self.request.query_params.get("patient")
 
         if patient_id:
@@ -76,7 +111,15 @@ class AllergyViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         patient_id = self.request.query_params.get("patient")
-        patient = Patient.objects.get(id=patient_id)
+        if not patient_id:
+            raise ValidationError(
+                {"patient": "Le paramètre patient est requis ( ?patient=<id> )."}
+            )
+
+        patient = get_object_or_404(
+            self.get_linked_patients(),
+            pk=patient_id,
+        )
         serializer.save(patient=patient)
 
 
@@ -95,11 +138,7 @@ class MedicationViewSet(viewsets.ModelViewSet):
     permission_classes = [IsDentist]
 
     def get_linked_patients(self):
-        user = self.request.user
-        return Patient.objects.filter(
-            Q(appointments__practitioner=user)
-            | Q(treatments__dentist=user)
-        ).distinct()
+        return get_linked_patients_for_dentist(self.request.user)
 
     def get_queryset(self):
         queryset = Medication.objects.all()

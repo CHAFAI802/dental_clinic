@@ -8,9 +8,17 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 env = environ.Env(DEBUG=(bool, False))
 env.read_env(BASE_DIR / '.env')
 
-SECRET_KEY = env('SECRET_KEY', default='changeme')
+SECRET_KEY = env('SECRET_KEY')
 DEBUG = env('DEBUG')
 ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['web'])
+
+CSRF_TRUSTED_ORIGINS = env.list('CSRF_TRUSTED_ORIGINS', default=[])
+CSRF_COOKIE_SECURE = not DEBUG
+SESSION_COOKIE_SECURE = not DEBUG
+
+if not DEBUG:
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -77,7 +85,7 @@ DATABASES = {
     'default': env.db()
 }
 
-if 'sqlite' in DATABASES['default']['ENGINE']:
+if DATABASES['default']['ENGINE'] != 'django.db.backends.postgresql':
     raise ImproperlyConfigured(
         'PostgreSQL is required. Set DATABASE_URL to a PostgreSQL connection string in .env.'
     )
