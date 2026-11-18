@@ -16,6 +16,7 @@ services:
     networks:
       dental_proxy_network:
         ipv4_address: 172.20.0.2
+      dental_frontend_web: {}
 
     mem_limit: 256m
     cpus: "0.5"
@@ -36,3 +37,7 @@ networks:
       config:
         - subnet: 172.20.0.0/24
           gateway: 172.20.0.1
+
+  dental_frontend_web:
+    name: dental_frontend_web
+    external: true
