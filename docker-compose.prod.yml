@@ -72,6 +72,10 @@ services:
     command: ["python", "manage.py", "migrate", "--noinput"]
 
     environment:
+      POSTGRES_USER: dental
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD requis}
+      POSTGRES_DB: dental
+
       DEBUG: "False"
       SECRET_KEY: ${SECRET_KEY:?SECRET_KEY requis}
       DATABASE_URL: ${DATABASE_URL_MIGRATOR:?DATABASE_URL_MIGRATOR requis}
