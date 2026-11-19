@@ -10,3 +10,14 @@ app.elqodsdental.com {
 
 	reverse_proxy frontend:80
 }
+
+elqodsdental.com, www.elqodsdental.com {
+	header {
+		Strict-Transport-Security "max-age=63072000"
+		?X-Content-Type-Options "nosniff"
+		?X-Frame-Options "DENY"
+		?Referrer-Policy "same-origin"
+	}
+
+	redir https://app.elqodsdental.com{uri} permanent
+}
