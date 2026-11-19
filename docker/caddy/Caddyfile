@@ -1,4 +1,12 @@
 app.elqodsdental.com {
-    encode zstd gzip
-    reverse_proxy frontend:80
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=63072000"
+		?X-Content-Type-Options "nosniff"
+		?X-Frame-Options "DENY"
+		?Referrer-Policy "same-origin"
+	}
+
+	reverse_proxy frontend:80
 }
