@@ -65,6 +65,7 @@ function NavBar() {
         {isAuthenticated ? (
           <>
             <NavLink to="/dashboard">{dashboardLabel}</NavLink>
+            <NavLink to="/dashboard/documentation">Documentation</NavLink>
             <button type="button" className="nav-link-button" onClick={handleLogout}>
               {logoutLabel}
             </button>
