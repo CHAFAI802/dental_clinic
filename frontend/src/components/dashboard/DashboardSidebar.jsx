@@ -29,6 +29,7 @@ function DashboardSidebar({ modules }) {
     : []
 
   const links = [
+    { key: 'documentation', to: '/dashboard/documentation', label: 'Documentation' },
     ...ordered.map((module) => ({
       key: module.id,
       to: routeForModule(module),

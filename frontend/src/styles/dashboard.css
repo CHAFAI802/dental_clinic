@@ -595,3 +595,205 @@
 .appointment-row.is-missed {
   background: var(--color-danger-soft);
 }
+
+
+/* Documentation utilisateur authentifiée */
+.documentation-page {
+  min-width: 0;
+}
+
+.documentation-admin {
+  margin-top: var(--space-6);
+  padding-top: var(--space-5);
+  border-top: 2px solid var(--color-border);
+}
+
+.documentation-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.documentation-layout {
+  display: grid;
+  grid-template-columns: minmax(190px, 240px) minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-5);
+}
+
+.documentation-toc {
+  position: sticky;
+  top: calc(var(--navbar-height) + var(--space-4));
+  max-height: calc(100vh - var(--navbar-height) - var(--space-6));
+  overflow-y: auto;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.documentation-toc h3 {
+  margin: 0 0 var(--space-2);
+  color: var(--color-primary);
+}
+
+.documentation-toc nav {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.documentation-toc a {
+  padding: 0.35rem 0.45rem;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  line-height: 1.35;
+  text-decoration: none;
+}
+
+.documentation-toc a:hover {
+  color: var(--color-primary);
+  background: var(--color-primary-soft);
+}
+
+.documentation-article {
+  min-width: 0;
+  padding: clamp(var(--space-3), 3vw, var(--space-6));
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.documentation-intro {
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.documentation-intro h1 {
+  margin: 0 0 var(--space-3);
+  color: var(--color-primary);
+  font-size: clamp(1.65rem, 3vw, 2.3rem);
+}
+
+.documentation-eyebrow,
+.documentation-meta {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.documentation-eyebrow {
+  margin-bottom: var(--space-2);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.08em;
+}
+
+.documentation-section {
+  padding-top: var(--space-5);
+  scroll-margin-top: calc(var(--navbar-height) + var(--space-4));
+}
+
+.documentation-section h2 {
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-primary);
+  font-size: clamp(1.2rem, 2.2vw, 1.55rem);
+}
+
+.documentation-section h3 {
+  margin-top: var(--space-4);
+  color: var(--color-secondary);
+  font-size: var(--font-size-lg);
+}
+
+.documentation-section p,
+.documentation-list li {
+  line-height: 1.65;
+}
+
+.documentation-list {
+  display: grid;
+  gap: var(--space-2);
+  padding-left: 1.4rem;
+}
+
+.documentation-callout {
+  margin: var(--space-3) 0;
+  padding: var(--space-3);
+  border-left: 4px solid var(--color-accent);
+  border-radius: var(--radius-sm);
+  background: var(--color-primary-soft);
+  color: var(--color-text);
+  line-height: 1.6;
+}
+
+.documentation-table-shell {
+  margin: var(--space-3) 0;
+}
+
+.documentation-table td {
+  vertical-align: top;
+  line-height: 1.5;
+}
+
+.documentation-endnote {
+  margin-top: var(--space-6);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  line-height: 1.6;
+}
+
+@media (max-width: 980px) {
+  .documentation-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .documentation-toc {
+    position: static;
+    max-height: none;
+  }
+
+  .documentation-toc nav {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .documentation-actions {
+    width: 100%;
+  }
+
+  .documentation-actions > * {
+    flex: 1 1 100%;
+    justify-content: center;
+  }
+
+  .documentation-toc nav {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .documentation-table-shell {
+    overflow-x: auto;
+  }
+}
+
+@media print {
+  .documentation-header,
+  .documentation-toc {
+    display: none !important;
+  }
+
+  .documentation-layout {
+    display: block;
+  }
+
+  .documentation-article {
+    border: 0;
+    padding: 0;
+  }
+
+  .documentation-section {
+    break-inside: avoid;
+  }
+}

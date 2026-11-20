@@ -20,6 +20,7 @@ import Team from './pages/Team.jsx'
 import AuditLogsPage from './pages/dashboard/AuditLogsPage.jsx'
 import BillingPage from './pages/dashboard/billing/BillingPage.jsx'
 import DashboardHome from './pages/dashboard/DashboardHome.jsx'
+import DocumentationPage from './pages/dashboard/DocumentationPage.jsx'
 import ModulePage from './pages/dashboard/ModulePage.jsx'
 import PrestationCategoriesPage from './pages/dashboard/billing/PrestationCategoriesPage.jsx'
 import PrestationTarifsPage from './pages/dashboard/billing/PrestationTarifsPage.jsx'
@@ -59,6 +60,7 @@ function App() {
                 <Route element={<ProtectedRoute />}>
                   <Route path="/dashboard" element={<Dashboard />}>
                     <Route index element={<DashboardHome />} />
+                    <Route path="documentation" element={<DocumentationPage />} />
                     <Route path="users" element={<UsersListPage />} />
                     <Route path="users/new" element={<UserCreatePage />} />
                     <Route path="users/:userId" element={<UserEditPage />} />
