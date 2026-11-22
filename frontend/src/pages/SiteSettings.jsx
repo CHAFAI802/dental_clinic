@@ -292,12 +292,141 @@ function ListEditor({ items = [], columns, onChange, addLabel = '+ Ajouter un é
  * Les modifications sont appliquées en direct puis enregistrées sur le
  * serveur avec `saveConfig`. Les images sont téléversées séparément.
  */
+
+function createTeamMemberId() {
+  if (globalThis.crypto?.randomUUID) {
+    return globalThis.crypto.randomUUID()
+  }
+
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
+function TeamMembersEditor({ members = [], onChange }) {
+  const updateMember = (id, changes) => {
+    onChange(
+      members.map((member) =>
+        member.id === id ? { ...member, ...changes } : member,
+      ),
+    )
+  }
+
+  const addMember = () => {
+    onChange([
+      ...members,
+      {
+        id: createTeamMemberId(),
+        name: '',
+        role: '',
+        description: '',
+        photo: '',
+      },
+    ])
+  }
+
+  const removeMember = (id) => {
+    onChange(members.filter((member) => member.id !== id))
+  }
+
+  return (
+    <div className="settings-list-editor">
+      {members.map((member) => (
+        <div className="settings-list-item" key={member.id}>
+          <div className="settings-fields">
+            <Field
+              label="Nom"
+              value={member.name}
+              onChange={(value) => updateMember(member.id, { name: value })}
+            />
+
+            <Field
+              label="Fonction"
+              value={member.role}
+              onChange={(value) => updateMember(member.id, { role: value })}
+            />
+
+            <div className="settings-fields single">
+              <TextAreaField
+                label="Description"
+                value={member.description}
+                onChange={(value) =>
+                  updateMember(member.id, { description: value })
+                }
+                rows={3}
+              />
+            </div>
+
+            <div className="settings-image-control">
+              <p>Photo du membre</p>
+
+              <SiteImageUploader
+                label={member.name || 'membre de l’équipe'}
+                storageKey={`team.member.${member.id}`}
+                value={member.photo}
+                alt={member.name}
+                onUploaded={(url) =>
+                  updateMember(member.id, { photo: url })
+                }
+              />
+            </div>
+          </div>
+
+          <button
+            type="button"
+            className="settings-icon-btn"
+            onClick={() => removeMember(member.id)}
+            aria-label={`Supprimer ${member.name || 'ce membre'}`}
+            title="Supprimer ce membre"
+          >
+            <Icon name="close" />
+          </button>
+        </div>
+      ))}
+
+      <div>
+        <button
+          type="button"
+          className="btn btn-outline btn-sm"
+          onClick={addMember}
+        >
+          + Ajouter un praticien
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function SiteSettings() {
   const { config, updateConfig, saveConfig, resetConfig } = useSiteConfig()
   const [activePanel, setActivePanel] = useState(PANELS[0].id)
   const [savedMessage, setSavedMessage] = useState('')
   const [saveError, setSaveError] = useState('')
   const [isSaving, setIsSaving] = useState(false)
+
+  // TEAM_MEMBER_ID_MIGRATION
+  useEffect(() => {
+    const members = config.team?.members || []
+    const usedIds = new Set()
+    let changed = false
+
+    const normalizedMembers = members.map((member) => {
+      let id = typeof member.id === 'string' ? member.id.trim() : ''
+
+      if (!id || usedIds.has(id)) {
+        id = createTeamMemberId()
+        changed = true
+      }
+
+      usedIds.add(id)
+
+      return id === member.id ? member : { ...member, id }
+    })
+
+    if (changed) {
+      updateConfig({
+        team: { members: normalizedMembers },
+      })
+    }
+  }, [config.team?.members, updateConfig])
 
   const handleSave = async () => {
     setSavedMessage('')
@@ -685,21 +814,19 @@ function SiteSettings() {
       </div>
 
       <div className="settings-card">
-        <h2>Équipe</h2>
-        <ListEditor
-          items={config.team.members}
-          columns={[
-            { key: 'name', label: 'Nom' },
-            { key: 'role', label: 'Fonction' },
-            { key: 'description', label: 'Description' },
-            { key: 'photo', label: 'Photo (URL ou /images/…)' },
-          ]}
-          onChange={(members) => updateConfig({ team: { members } })}
-          addLabel="+ Ajouter un praticien"
-        />
-      </div>
+  <h2>Équipe</h2>
+  <p>
+    Gérez les membres de l’équipe, leurs fonctions, leurs descriptions
+    et leurs photos.
+  </p>
 
-      <div className="settings-card">
+  <TeamMembersEditor
+    members={config.team.members || []}
+    onChange={(members) => updateConfig({ team: { members } })}
+  />
+</div>
+
+<div className="settings-card">
         <h2>Parcours patient</h2>
         <ListEditor
           items={config.steps.items}

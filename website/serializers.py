@@ -46,7 +46,7 @@ class SiteImageSerializer(serializers.ModelSerializer):
         if not obj.image:
             return None
         if request is not None:
-            return request.build_absolute_uri(obj.image.url)
+            return obj.image.url
         return obj.image.url
 
 
